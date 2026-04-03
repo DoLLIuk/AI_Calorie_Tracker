@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:my_new_app/main.dart';
+import 'package:my_new_app/onboarding.dart';
 import 'package:my_new_app/photo_food/controller.dart';
 import 'package:my_new_app/photo_food/models.dart';
 import 'package:my_new_app/photo_food/photo_picker.dart';
@@ -203,21 +204,412 @@ void main() {
     expect(find.text('Weight must be between 30 and 250 kg.'), findsOneWidget);
   });
 
-  testWidgets('home shows latest card and 4 category sections on empty day', (tester) async {
+  testWidgets('home hides latest card and shows compact history state on empty day', (tester) async {
     final controller = PhotoFoodController(
       repository: _FakeRepository(),
       photoPicker: _FakePicker(file: null),
     );
 
-    await tester.pumpWidget(MyApp(controller: controller, skipOnboarding: true));
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('latest-added-card')), findsOneWidget);
-    expect(find.byKey(const Key('latest-added-empty')), findsOneWidget);
-    expect(find.byKey(const Key('category-card-breakfast')), findsOneWidget);
-    expect(find.byKey(const Key('category-card-lunch')), findsOneWidget);
-    expect(find.byKey(const Key('category-card-dinner')), findsOneWidget);
-    expect(find.byKey(const Key('category-card-snacks')), findsOneWidget);
+    final consumedY = tester.getTopLeft(find.text('Consumed')).dy;
+    final coachY = tester.getTopLeft(find.byKey(const Key('coach-card'))).dy;
+    final proteinY = tester.getTopLeft(find.text('Protein')).dy;
+
+    expect(coachY, greaterThan(consumedY));
+    expect(coachY, lessThan(proteinY));
+    expect(find.text('Start your day'), findsOneWidget);
+    expect(find.text('Log your first meal to shape the rest of today'), findsOneWidget);
+    expect(find.byKey(const Key('latest-added-card')), findsNothing);
+    expect(find.byKey(const Key('latest-added-empty')), findsNothing);
+    expect(find.byKey(const Key('history-empty-card')), findsOneWidget);
+    expect(find.byKey(const Key('category-card-breakfast')), findsNothing);
+    expect(find.byKey(const Key('category-card-lunch')), findsNothing);
+    expect(find.byKey(const Key('category-card-dinner')), findsNothing);
+    expect(find.byKey(const Key('category-card-snacks')), findsNothing);
+  });
+
+  testWidgets('coach card shows empty copy for non-today selected day', (tester) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('day-chip-4')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No meals logged'), findsOneWidget);
+    expect(find.text('Add a meal to see how this day looked'), findsOneWidget);
+  });
+
+  testWidgets('coach card uses historical summary instead of next meal advice on past day', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'past_day_meal',
+          day: _fixedYesterday,
+          timestamp: DateTime(_fixedYesterday.year, _fixedYesterday.month, _fixedYesterday.day, 12, 30),
+          kcal: 900,
+          proteinG: 90,
+          mealType: 'lunch',
+          sessionId: 'session_past_day',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('day-chip-4')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('This day ran a bit light'), findsOneWidget);
+    expect(find.text('You finished well under your calorie target'), findsOneWidget);
+    expect(find.textContaining('Keep your next meal around'), findsNothing);
+  });
+
+  testWidgets('coach card shows over target state', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'over_target_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 12, 30),
+          kcal: 2200,
+          proteinG: 120,
+          mealType: 'lunch',
+          sessionId: 'session_over_target',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('You\'re past today\'s target'), findsOneWidget);
+    expect(find.text('If you eat again, keep it protein-first and light'), findsOneWidget);
+  });
+
+  testWidgets('coach card shows low calories left state', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'low_cal_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 12, 30),
+          kcal: 1700,
+          proteinG: 90,
+          mealType: 'lunch',
+          sessionId: 'session_low_cal',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not much room left today'), findsOneWidget);
+    expect(find.text('Keep the next meal light'), findsOneWidget);
+  });
+
+  testWidgets('coach card shows low protein today state', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'protein_today_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 12, 30),
+          kcal: 800,
+          proteinG: 20,
+          mealType: 'lunch',
+          sessionId: 'session_protein_today',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Protein is running low today'), findsOneWidget);
+    expect(find.text('Try to make lunch 30-40g protein'), findsOneWidget);
+  });
+
+  testWidgets('coach card uses dinner context after 21 00 instead of snack', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'late_evening_protein_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 19, 0),
+          kcal: 800,
+          proteinG: 20,
+          mealType: 'dinner',
+          sessionId: 'session_late_evening',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => DateTime(2026, 4, 2, 21, 15),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Protein is running low today'), findsOneWidget);
+    expect(find.text('Try to make dinner 30-40g protein'), findsOneWidget);
+    expect(find.text('Try to add a 15-20g protein snack'), findsNothing);
+  });
+
+  testWidgets('coach card shows yesterday protein state only for today', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'today_ok_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 12, 30),
+          kcal: 900,
+          proteinG: 90,
+          mealType: 'lunch',
+          sessionId: 'session_today_ok',
+        ),
+        _mealJson(
+          requestId: 'yesterday_low_protein',
+          day: _fixedYesterday,
+          timestamp: DateTime(_fixedYesterday.year, _fixedYesterday.month, _fixedYesterday.day, 12, 30),
+          kcal: 900,
+          proteinG: 40,
+          mealType: 'lunch',
+          sessionId: 'session_yesterday_low',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yesterday was light on protein'), findsOneWidget);
+    expect(find.text('Today, try to get 30-40g protein at lunch'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('day-chip-4')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yesterday was light on protein'), findsNothing);
+  });
+
+  testWidgets('coach card shows plenty calories left state when day is still light', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'plenty_left_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 12, 30),
+          kcal: 800,
+          proteinG: 80,
+          mealType: 'lunch',
+          sessionId: 'session_plenty_left',
+        ),
+        _mealJson(
+          requestId: 'yesterday_ok_meal',
+          day: _fixedYesterday,
+          timestamp: DateTime(_fixedYesterday.year, _fixedYesterday.month, _fixedYesterday.day, 12, 30),
+          kcal: 950,
+          proteinG: 150,
+          mealType: 'lunch',
+          sessionId: 'session_yesterday_ok',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('You still have room for a full meal'), findsOneWidget);
+    expect(find.text('Don\'t let lunch turn into just a snack'), findsOneWidget);
+  });
+
+  testWidgets('coach card shows strong protein progress state', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'strong_protein_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 11, 45),
+          kcal: 1100,
+          proteinG: 95,
+          mealType: 'lunch',
+          sessionId: 'session_strong_protein',
+        ),
+        _mealJson(
+          requestId: 'yesterday_ok_meal',
+          day: _fixedYesterday,
+          timestamp: DateTime(_fixedYesterday.year, _fixedYesterday.month, _fixedYesterday.day, 12, 30),
+          kcal: 950,
+          proteinG: 150,
+          mealType: 'lunch',
+          sessionId: 'session_yesterday_ok_2',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Protein looks solid so far'), findsOneWidget);
+    expect(find.text('The next meal can stay balanced instead of protein-heavy'), findsOneWidget);
+  });
+
+  testWidgets('coach card shows on track state when no stronger state applies', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        _mealJson(
+          requestId: 'on_track_meal',
+          day: _fixedToday,
+          timestamp: DateTime(_fixedToday.year, _fixedToday.month, _fixedToday.day, 12, 30),
+          kcal: 1200,
+          proteinG: 70,
+          mealType: 'lunch',
+          sessionId: 'session_on_track',
+        ),
+        _mealJson(
+          requestId: 'yesterday_ok_meal',
+          day: _fixedYesterday,
+          timestamp: DateTime(_fixedYesterday.year, _fixedYesterday.month, _fixedYesterday.day, 12, 30),
+          kcal: 950,
+          proteinG: 150,
+          mealType: 'lunch',
+          sessionId: 'session_yesterday_ok_3',
+        ),
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+        nowProvider: () => _fixedNow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Steady so far'), findsOneWidget);
+    expect(find.text('Keep your next meal around 400-500 kcal'), findsOneWidget);
   });
 
   testWidgets('latest card uses selected day and category entry opens details', (tester) async {
@@ -267,7 +659,8 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('day-chip-0')));
     await tester.tap(find.byKey(const Key('day-chip-0')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('latest-added-empty')), findsOneWidget);
+    expect(find.byKey(const Key('latest-added-card')), findsNothing);
+    expect(find.byKey(const Key('history-empty-card')), findsOneWidget);
   });
 
   testWidgets('lunch category splits sessions into Main meal and Extras', (tester) async {
@@ -521,6 +914,66 @@ void main() {
     await tester.tap(find.byKey(const Key('meal-type-lunch')));
     await tester.pumpAndSettle();
   });
+}
+
+final DateTime _fixedNow = DateTime(2026, 4, 2, 13, 0);
+final DateTime _fixedToday = DateTime(_fixedNow.year, _fixedNow.month, _fixedNow.day);
+final DateTime _fixedYesterday = _fixedToday.subtract(const Duration(days: 1));
+
+OnboardingResult _testOnboardingResult() {
+  return decodeOnboardingResultForTest(
+        jsonEncode({
+          'goalType': 'loseWeight',
+          'sex': 'male',
+          'age': 28,
+          'heightCm': 180.0,
+          'weightKg': 82.0,
+          'activityLevel': 'lightlyActive',
+          'targetPace': 'balanced',
+          'macroProfile': 'balanced',
+          'plan': {
+            'calorieTarget': 2000,
+            'proteinTargetG': 150,
+            'fatTargetG': 65,
+            'carbsTargetG': 220,
+          },
+        }),
+      ) ??
+      (throw StateError('Failed to build test onboarding result'));
+}
+
+Map<String, dynamic> _mealJson({
+  required String requestId,
+  required DateTime day,
+  required DateTime timestamp,
+  required double kcal,
+  required double proteinG,
+  required String mealType,
+  required String sessionId,
+}) {
+  return {
+    'requestId': requestId,
+    'origin': 'manual',
+    'name': requestId,
+    'day': day.toIso8601String(),
+    'timestamp': timestamp.toIso8601String(),
+    'kcal': kcal,
+    'proteinG': proteinG,
+    'carbsG': 30.0,
+    'fatG': 12.0,
+    'portionG': 250.0,
+    'confidence': 1.0,
+    'per100Kcal': kcal / 2.5,
+    'per100ProteinG': proteinG / 2.5,
+    'per100CarbsG': 12.0,
+    'per100FatG': 4.8,
+    'userSelectedType': mealType,
+    'autoDetectedType': mealType,
+    'finalType': mealType,
+    'autoDetectedTier': 'mainMeal',
+    'finalTier': 'mainMeal',
+    'sessionId': sessionId,
+  };
 }
 
 class _FakePicker implements PhotoPicker {

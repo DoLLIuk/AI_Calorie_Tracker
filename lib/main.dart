@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_config.dart';
+import 'home_coach.dart';
 import 'meal_session.dart';
 import 'meal_type.dart';
 import 'onboarding.dart';
@@ -25,6 +26,7 @@ class MyApp extends StatefulWidget {
   final PhotoPicker? photoPicker;
   final bool skipOnboarding;
   final OnboardingResult? onboardingResult;
+  final DateTime Function()? nowProvider;
 
   const MyApp({
     super.key,
@@ -34,6 +36,7 @@ class MyApp extends StatefulWidget {
     this.photoPicker,
     this.skipOnboarding = false,
     this.onboardingResult,
+    this.nowProvider,
   });
 
   @override
@@ -258,6 +261,7 @@ class _MyAppState extends State<MyApp> {
                   onMealsChanged: _handleMealsChanged,
                   onResetOnboarding: _resetOnboardingForTesting,
                   onEditProfile: _openProfileEditor,
+                  nowProvider: widget.nowProvider,
                 )
               : OnboardingFlow(
                   initialDraft: _onboardingDraft,
@@ -287,6 +291,7 @@ class _AppShell extends StatefulWidget {
   final ValueChanged<List<_MealEntry>> onMealsChanged;
   final VoidCallback onResetOnboarding;
   final Future<void> Function(BuildContext context) onEditProfile;
+  final DateTime Function()? nowProvider;
 
   const _AppShell({
     required this.controller,
@@ -295,6 +300,7 @@ class _AppShell extends StatefulWidget {
     required this.onMealsChanged,
     required this.onResetOnboarding,
     required this.onEditProfile,
+    this.nowProvider,
   });
 
   @override
@@ -317,6 +323,7 @@ class _AppShellState extends State<_AppShell> {
             onboardingResult: widget.onboardingResult,
             initialMeals: widget.initialMeals,
             onMealsChanged: widget.onMealsChanged,
+            nowProvider: widget.nowProvider,
           ),
           ProfilePage(
             onboardingResult: widget.onboardingResult,
@@ -369,6 +376,7 @@ class _CaloriesHomePage extends StatefulWidget {
   final OnboardingResult? onboardingResult;
   final List<_MealEntry> initialMeals;
   final ValueChanged<List<_MealEntry>> onMealsChanged;
+  final DateTime Function()? nowProvider;
 
   const _CaloriesHomePage({
     super.key,
@@ -376,6 +384,7 @@ class _CaloriesHomePage extends StatefulWidget {
     this.onboardingResult,
     this.initialMeals = const [],
     required this.onMealsChanged,
+    this.nowProvider,
   });
 
   @override
@@ -386,12 +395,14 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
   int selectedDay = 5;
   String? _lastErrorKey;
   final MealSessionService _mealSessionService = const MealSessionService();
+  final HomeCoachEvaluator _coachEvaluator = const HomeCoachEvaluator();
   final List<_MealEntry> meals = [];
   final Map<String, MealSession> _sessionsByEntryId = {};
   final Set<MealType> _expandedCategories = <MealType>{};
+  DateTime get _now => widget.nowProvider?.call() ?? DateTime.now();
 
   List<_DayItem> get days {
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(_now);
     final start = today.subtract(const Duration(days: 5));
     return List.generate(7, (i) {
       final day = start.add(Duration(days: i));
@@ -422,6 +433,7 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
   double get _sumProtein => _selectedSessions.fold(0.0, (sum, session) => sum + session.totalProtein);
   double get _sumCarbs => _selectedSessions.fold(0.0, (sum, session) => sum + session.totalCarbs);
   double get _sumFats => _selectedSessions.fold(0.0, (sum, session) => sum + session.totalFat);
+  double _proteinForDay(DateTime day) => meals.where((m) => _isSameDate(m.day, day)).fold(0.0, (sum, meal) => sum + meal.proteinG);
   _MealEntry? get _latestAddedMealForSelectedDay {
     if (_selectedMeals.isEmpty) return null;
     final ordered = List<_MealEntry>.from(_selectedMeals)
@@ -531,7 +543,7 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
 
   void _upsertMealFromResponse(PhotoFoodResponse response) {
     final totals = response.meta.estimatedTotals;
-    final now = DateTime.now();
+    final now = _now;
     final entryTimestamp = DateTime(
       _selectedDate.year,
       _selectedDate.month,
@@ -1186,6 +1198,8 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
         final state = widget.controller.state;
         final daySessions = _selectedSessions;
         final latestMeal = _latestAddedMealForSelectedDay;
+        final hasMealsForSelectedDay = daySessions.isNotEmpty;
+        final now = _now;
 
         final consumed = _sumKcal;
         final calorieTarget = widget.onboardingResult?.plan.calorieTarget.toDouble() ?? 2000.0;
@@ -1196,6 +1210,18 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
         final protein = _sumProtein;
         final carbs = _sumCarbs;
         final fat = _sumFats;
+        final proteinTarget = widget.onboardingResult?.plan.proteinTargetG.toDouble() ?? 150.0;
+        final yesterday = _selectedDate.subtract(const Duration(days: 1));
+        final coachContent = _coachEvaluator.evaluate(
+          selectedDate: _selectedDate,
+          now: now,
+          hasMealsForSelectedDay: hasMealsForSelectedDay,
+          consumedKcal: consumed,
+          consumedProtein: protein,
+          calorieTarget: calorieTarget,
+          proteinTarget: proteinTarget,
+          yesterdayProtein: _proteinForDay(yesterday),
+        );
 
         final isLoading = state.status == HomeStatus.pickingImage || state.status == HomeStatus.uploading || state.status == HomeStatus.confirmingPortion;
 
@@ -1213,39 +1239,46 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                     const SizedBox(height: 18),
                     _buildCaloriesCard(consumed: consumed, remaining: remaining, progress: progress),
                     const SizedBox(height: 14),
-                    _buildMacros(protein: protein, carbs: carbs, fat: fat),
+                    _CoachCard(content: coachContent),
                     const SizedBox(height: 14),
-                    _LatestAddedMealCard(
-                      meal: latestMeal,
-                      onTap: latestMeal == null ? null : () => _showMealDetails(latestMeal),
-                    ),
+                    _buildMacros(protein: protein, carbs: carbs, fat: fat),
+                    if (latestMeal != null) ...[
+                      const SizedBox(height: 14),
+                      _LatestAddedMealCard(
+                        meal: latestMeal,
+                        onTap: () => _showMealDetails(latestMeal),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     const Text('History', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 12),
-                    ...categorySections.map(
-                      (section) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _CategorySectionCard(
-                          model: section,
-                          expanded: _expandedCategories.contains(section.type),
-                          onToggle: () {
-                            setState(() {
-                              if (_expandedCategories.contains(section.type)) {
-                                _expandedCategories.remove(section.type);
-                              } else {
-                                _expandedCategories.add(section.type);
+                    if (!hasMealsForSelectedDay)
+                      const _HistoryEmptyCard()
+                    else
+                      ...categorySections.map(
+                        (section) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _CategorySectionCard(
+                            model: section,
+                            expanded: _expandedCategories.contains(section.type),
+                            onToggle: () {
+                              setState(() {
+                                if (_expandedCategories.contains(section.type)) {
+                                  _expandedCategories.remove(section.type);
+                                } else {
+                                  _expandedCategories.add(section.type);
+                                }
+                              });
+                            },
+                            onTapMeal: (mealId) {
+                              final meal = _mealById(mealId);
+                              if (meal != null) {
+                                _showMealDetails(meal);
                               }
-                            });
-                          },
-                          onTapMeal: (mealId) {
-                            final meal = _mealById(mealId);
-                            if (meal != null) {
-                              _showMealDetails(meal);
-                            }
-                          },
+                            },
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -2627,6 +2660,103 @@ class _NumberBlock extends StatelessWidget {
   }
 }
 
+class _CoachCard extends StatelessWidget {
+  final CoachCardContent content;
+
+  const _CoachCard({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('coach-card'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D111827),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  content.accentColor.withValues(alpha: 0.18),
+                  content.accentColor.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: content.accentColor.withValues(alpha: 0.18)),
+            ),
+            child: Icon(content.icon, color: content.accentColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              key: Key('coach-card-${content.state.name}'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: content.accentColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Coach',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                          color: content.accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  content.primary,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  content.secondary,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MacroCard extends StatelessWidget {
   final String title;
   final String amount;
@@ -2743,6 +2873,67 @@ class _LatestAddedMealCard extends StatelessWidget {
           ],
         ),
         child: content,
+      ),
+    );
+  }
+}
+
+class _HistoryEmptyCard extends StatelessWidget {
+  const _HistoryEmptyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('history-empty-card'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2A2F37), Color(0xFF1E2229)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF4B5563), width: 1.1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: const Color(0xFF374151),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF6B7280)),
+            ),
+            child: const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Nothing logged yet',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Your meals for this day will appear here after the first added dish.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

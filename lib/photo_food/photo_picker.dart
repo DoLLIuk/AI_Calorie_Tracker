@@ -16,7 +16,11 @@ class ImagePickerPhotoPicker implements PhotoPicker {
   Future<XFile?> pick(PickSource source) {
     switch (source) {
       case PickSource.camera:
-        return _imagePicker.pickImage(source: ImageSource.camera, imageQuality: 90);
+        // Avoid extra recompression/resizing on capture path to reduce return lag.
+        return _imagePicker.pickImage(
+          source: ImageSource.camera,
+          requestFullMetadata: false,
+        );
       case PickSource.gallery:
         return _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     }
