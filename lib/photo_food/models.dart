@@ -1,3 +1,35 @@
+enum DishCategory {
+  soup('soup'),
+  salad('salad'),
+  bowl('bowl'),
+  pasta('pasta'),
+  mixedPlate('mixed_plate');
+
+  const DishCategory(this.apiValue);
+
+  final String apiValue;
+
+  static DishCategory? fromApiValue(String? value) {
+    if (value == null) return null;
+    for (final category in DishCategory.values) {
+      if (category.apiValue == value) {
+        return category;
+      }
+    }
+    return null;
+  }
+}
+
+class PhotoClarificationInput {
+  final DishCategory? dishCategory;
+  final List<String> ingredientHints;
+
+  const PhotoClarificationInput({
+    this.dishCategory,
+    this.ingredientHints = const [],
+  });
+}
+
 class NutritionPer100g {
   final double kcal;
   final double proteinG;
@@ -80,16 +112,23 @@ class Item {
 class UiFlags {
   final bool requiresUserConfirmation;
   final String highlightLevel;
+  final bool clarificationAvailable;
+  final bool shouldPromptClarification;
 
   const UiFlags({
     required this.requiresUserConfirmation,
     required this.highlightLevel,
+    this.clarificationAvailable = false,
+    this.shouldPromptClarification = false,
   });
 
   factory UiFlags.fromJson(Map<String, dynamic> json) {
     return UiFlags(
       requiresUserConfirmation: json['requires_user_confirmation'] as bool,
       highlightLevel: json['highlight_level'] as String,
+      clarificationAvailable: json['clarification_available'] as bool? ?? false,
+      shouldPromptClarification:
+          json['should_prompt_clarification'] as bool? ?? false,
     );
   }
 }
@@ -101,6 +140,8 @@ class Meta {
   final String? confirmationSource;
   final bool totalsAreEstimate;
   final EstimatedTotals? estimatedTotals;
+  final String? ambiguityReason;
+  final List<DishCategory> clarificationCategories;
 
   const Meta({
     required this.needsConfirmation,
@@ -109,10 +150,17 @@ class Meta {
     required this.confirmationSource,
     required this.totalsAreEstimate,
     required this.estimatedTotals,
+    this.ambiguityReason,
+    this.clarificationCategories = const [],
   });
 
   factory Meta.fromJson(Map<String, dynamic> json) {
     final totalsJson = json['estimated_totals'];
+    final clarificationCategories =
+        ((json['clarification_categories'] as List?) ?? const [])
+            .map((value) => DishCategory.fromApiValue(value?.toString()))
+            .whereType<DishCategory>()
+            .toList(growable: false);
     return Meta(
       needsConfirmation: json['needs_confirmation'] as bool,
       estimatedPortionG: (json['estimated_portion_g'] as num?)?.toDouble(),
@@ -122,6 +170,8 @@ class Meta {
       estimatedTotals: totalsJson is Map<String, dynamic>
           ? EstimatedTotals.fromJson(totalsJson)
           : null,
+      ambiguityReason: json['ambiguity_reason'] as String?,
+      clarificationCategories: clarificationCategories,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'api_error.dart';
 import 'models.dart';
@@ -20,11 +21,7 @@ class HomeState {
   final PhotoFoodResponse? response;
   final ApiError? error;
 
-  const HomeState({
-    required this.status,
-    this.response,
-    this.error,
-  });
+  const HomeState({required this.status, this.response, this.error});
 
   const HomeState.initial() : this(status: HomeStatus.idle);
 
@@ -47,44 +44,68 @@ class PhotoFoodController extends ChangeNotifier {
   final PhotoPicker photoPicker;
 
   HomeState _state = const HomeState.initial();
+  XFile? _lastPickedFile;
 
   HomeState get state => _state;
 
-  PhotoFoodController({
-    required this.repository,
-    required this.photoPicker,
-  });
+  PhotoFoodController({required this.repository, required this.photoPicker});
 
-  Future<void> pickAndAnalyze(PickSource source) async {
-    _setState(_state.copyWith(status: HomeStatus.pickingImage, clearError: true));
+  Future<XFile?> pickImage(PickSource source) async {
+    _setState(
+      _state.copyWith(status: HomeStatus.pickingImage, clearError: true),
+    );
 
     final pickedFile = await photoPicker.pick(source);
     if (pickedFile == null) {
       _setState(_state.copyWith(status: HomeStatus.idle));
-      return;
+      return null;
     }
+    _lastPickedFile = pickedFile;
+    _setState(_state.copyWith(status: HomeStatus.idle));
+    return pickedFile;
+  }
 
+  Future<void> analyzePickedImage({
+    PhotoClarificationInput? clarification,
+  }) async {
+    final pickedFile = _lastPickedFile;
+    if (pickedFile == null) return;
     _setState(_state.copyWith(status: HomeStatus.uploading));
     try {
-      final response = await repository.analyzePhoto(pickedFile, locale: 'ru-RU');
+      final response = await repository.analyzePhoto(
+        pickedFile,
+        locale: 'ru-RU',
+        clarification: clarification,
+      );
       _setState(
-        HomeState(
-          status: response.uiFlags.requiresUserConfirmation
-              ? HomeStatus.awaitingPortion
-              : HomeStatus.loaded,
-          response: response,
-        ),
+        HomeState(status: _resolvedStatus(response), response: response),
       );
     } on ApiException catch (e) {
-      _setState(HomeState(status: HomeStatus.error, response: _state.response, error: e.error));
+      _setState(
+        HomeState(
+          status: HomeStatus.error,
+          response: _state.response,
+          error: e.error,
+        ),
+      );
     } catch (_) {
       _setState(
         const HomeState(
           status: HomeStatus.error,
-          error: ApiError(code: 'INTERNAL_ERROR', message: 'Internal server error'),
+          error: ApiError(
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+          ),
         ),
       );
     }
+  }
+
+  HomeStatus _resolvedStatus(PhotoFoodResponse response) {
+    if (response.uiFlags.requiresUserConfirmation) {
+      return HomeStatus.awaitingPortion;
+    }
+    return HomeStatus.loaded;
   }
 
   Future<bool> confirmPortion(double portionG) async {
@@ -95,13 +116,18 @@ class PhotoFoodController extends ChangeNotifier {
     return _confirmPortion(useAiEstimate: true);
   }
 
-  Future<bool> _confirmPortion({double? portionG, bool useAiEstimate = false}) async {
+  Future<bool> _confirmPortion({
+    double? portionG,
+    bool useAiEstimate = false,
+  }) async {
     final response = _state.response;
     if (response == null) {
       return false;
     }
 
-    _setState(_state.copyWith(status: HomeStatus.confirmingPortion, clearError: true));
+    _setState(
+      _state.copyWith(status: HomeStatus.confirmingPortion, clearError: true),
+    );
     try {
       final confirmed = await repository.confirmPortion(
         requestId: response.requestId,
@@ -111,14 +137,19 @@ class PhotoFoodController extends ChangeNotifier {
       _setState(HomeState(status: HomeStatus.loaded, response: confirmed));
       return true;
     } on ApiException catch (e) {
-      _setState(HomeState(status: HomeStatus.error, response: response, error: e.error));
+      _setState(
+        HomeState(status: HomeStatus.error, response: response, error: e.error),
+      );
       return false;
     } catch (_) {
       _setState(
         HomeState(
           status: HomeStatus.error,
           response: response,
-          error: const ApiError(code: 'INTERNAL_ERROR', message: 'Internal server error'),
+          error: const ApiError(
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+          ),
         ),
       );
       return false;
@@ -148,4 +179,3 @@ class PhotoFoodController extends ChangeNotifier {
     notifyListeners();
   }
 }
-

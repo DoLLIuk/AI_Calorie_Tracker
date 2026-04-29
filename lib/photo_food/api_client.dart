@@ -24,16 +24,15 @@ class PhotoFoodApiClient implements PhotoFoodRepository {
   final AppConfig config;
   final http.Client _httpClient;
 
-  PhotoFoodApiClient({
-    required this.config,
-    http.Client? httpClient,
-  }) : _httpClient = httpClient ?? http.Client();
+  PhotoFoodApiClient({required this.config, http.Client? httpClient})
+    : _httpClient = httpClient ?? http.Client();
 
   @override
   Future<PhotoFoodResponse> analyzePhoto(
     XFile image, {
     String locale = 'ru-RU',
     String? mealTime,
+    PhotoClarificationInput? clarification,
   }) async {
     final uri = _resolveUri('/v0/ai/photo-food');
     final request = http.MultipartRequest('POST', uri)
@@ -42,6 +41,20 @@ class PhotoFoodApiClient implements PhotoFoodRepository {
 
     if (mealTime != null && mealTime.trim().isNotEmpty) {
       request.fields['meal_time'] = mealTime.trim();
+    }
+    if (clarification != null) {
+      final dishCategory = clarification.dishCategory;
+      if (dishCategory != null) {
+        request.fields['dish_category'] = dishCategory.apiValue;
+      }
+      if (clarification.ingredientHints.isNotEmpty) {
+        request.fields['ingredient_hints'] = jsonEncode(
+          clarification.ingredientHints,
+        );
+      }
+      request.fields['analysis_mode'] = 'clarified';
+    } else {
+      request.fields['analysis_mode'] = 'initial';
     }
 
     final imageBytes = await image.readAsBytes();
@@ -56,8 +69,13 @@ class PhotoFoodApiClient implements PhotoFoodRepository {
       );
     }
 
-    final detectedMimeType = lookupMimeType(image.path, headerBytes: imageBytes);
-    final mimeType = detectedMimeType == 'image/jpg' ? 'image/jpeg' : detectedMimeType;
+    final detectedMimeType = lookupMimeType(
+      image.path,
+      headerBytes: imageBytes,
+    );
+    final mimeType = detectedMimeType == 'image/jpg'
+        ? 'image/jpeg'
+        : detectedMimeType;
     if (mimeType == null || !_allowedMimeTypes.contains(mimeType)) {
       throw const ApiException(
         ApiError(
@@ -79,11 +97,10 @@ class PhotoFoodApiClient implements PhotoFoodRepository {
 
     try {
       final streamed = await _httpClient.send(request).timeout(_requestTimeout);
-      final body = await streamed.stream.bytesToString().timeout(_requestTimeout);
-      return _parseResponseOrThrow(
-        statusCode: streamed.statusCode,
-        body: body,
+      final body = await streamed.stream.bytesToString().timeout(
+        _requestTimeout,
       );
+      return _parseResponseOrThrow(statusCode: streamed.statusCode, body: body);
     } on SocketException {
       throw const ApiException(
         ApiError(code: 'NETWORK_ERROR', message: 'Network error'),
