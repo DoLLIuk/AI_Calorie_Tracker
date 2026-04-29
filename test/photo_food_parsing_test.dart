@@ -21,6 +21,8 @@ void main() {
       'ui_flags': {
         'requires_user_confirmation': true,
         'highlight_level': 'orange',
+        'clarification_available': true,
+        'should_prompt_clarification': true,
       },
       'meta': {
         'needs_confirmation': true,
@@ -28,6 +30,8 @@ void main() {
         'portion_basis': 'visual estimate',
         'confirmation_source': null,
         'totals_are_estimate': true,
+        'ambiguity_reason': 'mixed_dish',
+        'clarification_categories': ['soup', 'salad'],
         'estimated_totals': {
           'kcal': 297.0,
           'protein_g': 55.8,
@@ -43,8 +47,15 @@ void main() {
     expect(response.item.name, 'Chicken breast with rice');
     expect(response.item.nutritionPer100g.kcal, 165);
     expect(response.uiFlags.requiresUserConfirmation, isTrue);
+    expect(response.uiFlags.clarificationAvailable, isTrue);
+    expect(response.uiFlags.shouldPromptClarification, isTrue);
     expect(response.meta.estimatedPortionG, 180.0);
     expect(response.meta.totalsAreEstimate, isTrue);
     expect(response.meta.estimatedTotals?.kcal, 297.0);
+    expect(response.meta.ambiguityReason, 'mixed_dish');
+    expect(response.meta.clarificationCategories, [
+      DishCategory.soup,
+      DishCategory.salad,
+    ]);
   });
 }

@@ -7,6 +7,7 @@ abstract class PhotoFoodRepository {
     XFile image, {
     String locale,
     String? mealTime,
+    PhotoClarificationInput? clarification,
   });
 
   Future<PhotoFoodResponse> confirmPortion({
