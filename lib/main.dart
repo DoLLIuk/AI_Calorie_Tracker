@@ -1258,7 +1258,7 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                                       size: 18,
                                     ),
                                     label: const Text(
-                                      'Reset auto-calc',
+                                      'Reset auto‑calc',
                                       textAlign: TextAlign.center,
                                     ),
                                     style: TextButton.styleFrom(
