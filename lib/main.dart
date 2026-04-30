@@ -1243,59 +1243,71 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                       if (formDraft.shouldShowResetAutoCalc ||
                           hasSessionRestoreChanges()) ...[
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            if (formDraft.shouldShowResetAutoCalc)
-                              Expanded(
-                                child: TextButton.icon(
-                                  key: const Key('reset-auto-calc'),
-                                  onPressed: () => resetAutoCalc(setSheetState),
-                                  icon: const Icon(
-                                    Icons.refresh_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Reset auto-calc'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: const Color(0xFFB45309),
-                                    backgroundColor: const Color(0xFFFFF7D6),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (formDraft.shouldShowResetAutoCalc)
+                                Expanded(
+                                  child: TextButton.icon(
+                                    key: const Key('reset-auto-calc'),
+                                    onPressed: () =>
+                                        resetAutoCalc(setSheetState),
+                                    icon: const Icon(
+                                      Icons.refresh_rounded,
+                                      size: 18,
                                     ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
+                                    label: const Text(
+                                      'Reset auto-calc',
+                                      textAlign: TextAlign.center,
                                     ),
-                                  ),
-                                ),
-                              ),
-                            if (formDraft.shouldShowResetAutoCalc &&
-                                hasSessionRestoreChanges())
-                              const SizedBox(width: 10),
-                            if (hasSessionRestoreChanges())
-                              Expanded(
-                                child: TextButton.icon(
-                                  key: const Key('restore-session-start'),
-                                  onPressed: () =>
-                                      restoreSessionStart(setSheetState),
-                                  icon: const Icon(
-                                    Icons.undo_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Restore previous values'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: const Color(0xFF7C3AED),
-                                    backgroundColor: const Color(0xFFF5F3FF),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFFB45309),
+                                      backgroundColor: const Color(0xFFFFF7D6),
+                                      minimumSize: const Size(0, 60),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                              if (formDraft.shouldShowResetAutoCalc &&
+                                  hasSessionRestoreChanges())
+                                const SizedBox(width: 10),
+                              if (hasSessionRestoreChanges())
+                                Expanded(
+                                  child: TextButton.icon(
+                                    key: const Key('restore-session-start'),
+                                    onPressed: () =>
+                                        restoreSessionStart(setSheetState),
+                                    icon: const Icon(
+                                      Icons.undo_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text(
+                                      'Restore previous values',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFF7C3AED),
+                                      backgroundColor: const Color(0xFFF5F3FF),
+                                      minimumSize: const Size(0, 60),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ],
                       const SizedBox(height: 16),
