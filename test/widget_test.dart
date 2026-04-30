@@ -1370,7 +1370,63 @@ void main() {
       findsOneWidget,
     );
   });
-  testWidgets('locked calories protein conflict opens keep editing confirm', (
+  testWidgets(
+    'editing meal ignores small calorie mismatch within fifteen percent',
+    (tester) async {
+      final now = DateTime(2026, 4, 2, 13, 0);
+      SharedPreferences.setMockInitialValues({
+        'app.meals': jsonEncode([
+          {
+            'requestId': 'manual_small_mismatch',
+            'origin': 'manual',
+            'name': 'Small Mismatch Meal',
+            'day': now.toIso8601String(),
+            'timestamp': now.toIso8601String(),
+            'kcal': 330.0,
+            'proteinG': 25.0,
+            'carbsG': 30.0,
+            'fatG': 10.0,
+            'portionG': 250.0,
+            'confidence': 1.0,
+            'per100Kcal': 132.0,
+            'per100ProteinG': 10.0,
+            'per100CarbsG': 12.0,
+            'per100FatG': 4.0,
+            'autoDetectedType': 'lunch',
+            'finalType': 'lunch',
+            'autoDetectedTier': 'extra',
+            'finalTier': 'extra',
+            'sessionId': 'manual_small_mismatch',
+          },
+        ]),
+      });
+
+      final controller = PhotoFoodController(
+        repository: _FakeRepository(),
+        photoPicker: _FakePicker(file: null),
+      );
+
+      await tester.pumpWidget(
+        MyApp(
+          controller: controller,
+          skipOnboarding: true,
+          nowProvider: () => now,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Small Mismatch Meal'));
+      await tester.tap(find.text('Small Mismatch Meal'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reset-auto-calc')), findsNothing);
+      expect(find.byKey(const Key('meal-form-message')), findsNothing);
+    },
+  );
+  testWidgets('locked calories protein conflict can save as entered', (
     tester,
   ) async {
     final controller = PhotoFoodController(
@@ -1413,22 +1469,31 @@ void main() {
 
     expect(find.text('Keep calories fixed?'), findsOneWidget);
     expect(
-      find.byKey(const Key('locked-calories-keep-editing')),
+      find.byKey(const Key('locked-calories-save-as-entered')),
       findsOneWidget,
     );
     expect(find.byKey(const Key('locked-calories-auto-save')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('locked-calories-keep-editing')));
+    await tester.tap(find.byKey(const Key('locked-calories-save-as-entered')));
     await tester.pumpAndSettle();
 
     expect(find.text('Keep calories fixed?'), findsNothing);
-    expect(find.text('Save Changes'), findsOneWidget);
-    expect(
-      find.text(
-        'Calories are locked. Unlock another macro or reset auto-calc to rebalance this meal.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Save Changes'), findsNothing);
+
+    await tester.ensureVisible(find.text('Locked Calories Proposal'));
+    await tester.tap(find.text('Locked Calories Proposal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final savedFields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(savedFields[1].controller?.text, '400.0');
+    expect(savedFields[3].controller?.text, '40.0');
+    expect(savedFields[4].controller?.text, '12.9');
+    expect(savedFields[5].controller?.text, '38.7');
   });
   testWidgets('locked calories protein conflict auto adjusts and saves', (
     tester,
@@ -1929,6 +1994,64 @@ void main() {
     expect(find.byKey(const Key('meal-lock-protein')), findsNothing);
     expect(find.byKey(const Key('meal-form-message')), findsNothing);
     expect(find.text('370.0'), findsOneWidget);
+  });
+  testWidgets('restore start values returns edit session to initial state', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Restore Start Meal');
+    await tester.enterText(fields.at(1), '290');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Restore Start Meal'));
+    await tester.tap(find.text('Restore Start Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(1), '400');
+    await tester.enterText(editFields.at(3), '40');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('restore-session-start')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('restore-session-start')));
+    await tester.tap(find.byKey(const Key('restore-session-start')));
+    await tester.pumpAndSettle();
+
+    final restoredFields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(restoredFields[0].controller?.text, 'Restore Start Meal');
+    expect(restoredFields[1].controller?.text, '290.0');
+    expect(restoredFields[2].controller?.text, '250.0');
+    expect(restoredFields[3].controller?.text, '25.0');
+    expect(restoredFields[4].controller?.text, '10.0');
+    expect(restoredFields[5].controller?.text, '30.0');
+    expect(find.byKey(const Key('meal-lock-calories')), findsNothing);
+    expect(find.byKey(const Key('meal-lock-protein')), findsNothing);
+    expect(find.byKey(const Key('restore-session-start')), findsNothing);
   });
   testWidgets('conflicting locked nutrition values show form error', (
     tester,

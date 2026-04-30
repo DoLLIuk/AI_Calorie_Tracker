@@ -735,6 +735,9 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
         editingMeal?.finalType ??
         classifyMealTypeByTime(DateTime.now());
     var formDraft = _MealFormDraft.fromMeal(editingMeal);
+    final initialFormDraft = formDraft;
+    final initialMealType = selectedMealType;
+    final initialMealName = nameCtrl.text;
     String? formMessage = formDraft.inlineMessage;
     var isApplyingDraft = false;
     final mealEditSource = editingMeal == null ? 'add' : 'edit';
@@ -847,10 +850,33 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
       });
     }
 
-    Future<bool> showLockedCaloriesConfirm(
+    bool hasSessionRestoreChanges() {
+      return !formDraft.isSameSessionState(initialFormDraft) ||
+          selectedMealType != initialMealType ||
+          nameCtrl.text != initialMealName;
+    }
+
+    void restoreSessionStart(StateSetter setSheetState) {
+      formDraft = initialFormDraft;
+      selectedMealType = initialMealType;
+      updateControllerText(nameCtrl, initialMealName);
+      syncControllersFromDraft();
+      _trackMealEditEvent('meal_edit_restore_session_start', {
+        'source': mealEditSource,
+        'locked_fields_count': formDraft.lockedFields.length,
+        'manually_edited_macro_count':
+            formDraft.manuallyEditedMacroFields.length,
+        'has_conflict': formDraft.errorMessage != null,
+      });
+      setSheetState(() {
+        formMessage = formDraft.inlineMessage;
+      });
+    }
+
+    Future<String?> showLockedCaloriesConfirm(
       _MealLockedCaloriesAutoAdjustProposal proposal,
     ) async {
-      final shouldAutoAdjust = await showModalBottomSheet<bool>(
+      final action = await showModalBottomSheet<String>(
         context: context,
         useSafeArea: true,
         backgroundColor: Colors.transparent,
@@ -897,10 +923,11 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            key: const Key('locked-calories-keep-editing'),
-                            onPressed: () =>
-                                Navigator.of(sheetContext).pop(false),
-                            child: const Text('Keep editing'),
+                            key: const Key('locked-calories-save-as-entered'),
+                            onPressed: () => Navigator.of(
+                              sheetContext,
+                            ).pop('save_as_entered'),
+                            child: const Text('Save as entered'),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -908,7 +935,7 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                           child: FilledButton(
                             key: const Key('locked-calories-auto-save'),
                             onPressed: () =>
-                                Navigator.of(sheetContext).pop(true),
+                                Navigator.of(sheetContext).pop('auto_adjust'),
                             child: const Text('Auto-adjust & save'),
                           ),
                         ),
@@ -921,7 +948,7 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
           );
         },
       );
-      return shouldAutoAdjust ?? false;
+      return action;
     }
 
     void persistMealDraft(
@@ -1213,26 +1240,62 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                           ),
                         ),
                       ],
-                      if (formDraft.shouldShowResetAutoCalc) ...[
+                      if (formDraft.shouldShowResetAutoCalc ||
+                          hasSessionRestoreChanges()) ...[
                         const SizedBox(height: 12),
-                        Center(
-                          child: TextButton.icon(
-                            key: const Key('reset-auto-calc'),
-                            onPressed: () => resetAutoCalc(setSheetState),
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
-                            label: const Text('Reset auto-calc'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFB45309),
-                              backgroundColor: const Color(0xFFFFF7D6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
+                        Row(
+                          children: [
+                            if (formDraft.shouldShowResetAutoCalc)
+                              Expanded(
+                                child: TextButton.icon(
+                                  key: const Key('reset-auto-calc'),
+                                  onPressed: () => resetAutoCalc(setSheetState),
+                                  icon: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Reset auto-calc'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFFB45309),
+                                    backgroundColor: const Color(0xFFFFF7D6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                            if (formDraft.shouldShowResetAutoCalc &&
+                                hasSessionRestoreChanges())
+                              const SizedBox(width: 10),
+                            if (hasSessionRestoreChanges())
+                              Expanded(
+                                child: TextButton.icon(
+                                  key: const Key('restore-session-start'),
+                                  onPressed: () =>
+                                      restoreSessionStart(setSheetState),
+                                  icon: const Icon(
+                                    Icons.undo_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Restore previous values'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFF7C3AED),
+                                    backgroundColor: const Color(0xFFF5F3FF),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
+                          ],
                         ),
                       ],
                       const SizedBox(height: 16),
@@ -1291,13 +1354,35 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                                       formDraft.errorMessage != null,
                                 },
                               );
-                              final shouldAutoAdjust =
+                              final confirmAction =
                                   await showLockedCaloriesConfirm(
                                     autoAdjustProposal,
                                   );
-                              if (!shouldAutoAdjust) {
+                              if (confirmAction == 'save_as_entered') {
                                 _trackMealEditEvent(
-                                  'meal_edit_locked_conflict_keep_editing',
+                                  'meal_edit_locked_conflict_save_as_entered',
+                                  {
+                                    'source': mealEditSource,
+                                    'locked_fields_count':
+                                        formDraft.lockedFields.length,
+                                    'manually_edited_macro_count': formDraft
+                                        .manuallyEditedMacroFields
+                                        .length,
+                                    'adjusted_fields': autoAdjustProposal
+                                        .adjustedFields
+                                        .map((field) => field.name)
+                                        .toList(growable: false),
+                                    'has_conflict':
+                                        formDraft.errorMessage != null,
+                                  },
+                                );
+                              } else if (confirmAction != 'auto_adjust') {
+                                return;
+                              } else {
+                                formDraft = autoAdjustProposal.adjustedDraft;
+                                syncControllersFromDraft();
+                                _trackMealEditEvent(
+                                  'meal_edit_locked_conflict_auto_adjust_saved',
                                   {
                                     'source': mealEditSource,
                                     'locked_fields_count':
@@ -1314,33 +1399,9 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                                   },
                                 );
                                 setSheetState(() {
-                                  formMessage =
-                                      formDraft.keepEditingHelperMessage;
+                                  formMessage = formDraft.inlineMessage;
                                 });
-                                return;
                               }
-                              formDraft = autoAdjustProposal.adjustedDraft;
-                              syncControllersFromDraft();
-                              _trackMealEditEvent(
-                                'meal_edit_locked_conflict_auto_adjust_saved',
-                                {
-                                  'source': mealEditSource,
-                                  'locked_fields_count':
-                                      formDraft.lockedFields.length,
-                                  'manually_edited_macro_count': formDraft
-                                      .manuallyEditedMacroFields
-                                      .length,
-                                  'adjusted_fields': autoAdjustProposal
-                                      .adjustedFields
-                                      .map((field) => field.name)
-                                      .toList(growable: false),
-                                  'has_conflict':
-                                      formDraft.errorMessage != null,
-                                },
-                              );
-                              setSheetState(() {
-                                formMessage = formDraft.inlineMessage;
-                              });
                             } else if (formDraft.hasCaloriesLockedConflict) {
                               _trackMealEditEvent(
                                 'meal_edit_locked_conflict_unresolvable',
@@ -3694,6 +3755,7 @@ class _MealFormDraft {
       'This field can’t be auto-adjusted because other nutrition values were edited manually.';
   static const String existingInconsistencyMessage =
       'This meal has inconsistent nutrition values. Reset auto-calc to normalize it.';
+  static const double _existingConsistencyToleranceRatio = 0.15;
   static const String allMacrosLockedMessage =
       'All macros are manually locked. Unlock one macro or reset auto-calc to continue.';
   static const String lockedCaloriesRebalanceMessage =
@@ -3770,6 +3832,18 @@ class _MealFormDraft {
   }
 
   bool isLocked(_MealEditField field) => lockedFields.contains(field);
+  bool isSameSessionState(_MealFormDraft other) {
+    return grams == other.grams &&
+        kcal == other.kcal &&
+        proteinG == other.proteinG &&
+        fatG == other.fatG &&
+        carbsG == other.carbsG &&
+        setEquals(lockedFields, other.lockedFields) &&
+        setEquals(manuallyEditedMacroFields, other.manuallyEditedMacroFields) &&
+        errorMessage == other.errorMessage &&
+        lastEditedField == other.lastEditedField;
+  }
+
   bool get hasLockedFields => lockedFields.isNotEmpty;
   bool get shouldShowResetAutoCalc =>
       hasLockedFields || errorMessage == existingInconsistencyMessage;
@@ -3789,14 +3863,6 @@ class _MealFormDraft {
       return allMacrosLockedMessage;
     }
     return lockedCaloriesRebalanceMessage;
-  }
-
-  String? get keepEditingHelperMessage {
-    if (!hasCaloriesLockedConflict) return null;
-    if (buildAutoAdjustedDraftRespectingAllManualMacroChanges() != null) {
-      return lockedCaloriesRebalanceMessage;
-    }
-    return inlineMessage;
   }
 
   _MealFormDraft applyUserEdit(_MealEditField field, double value) {
@@ -3982,7 +4048,17 @@ class _MealFormDraft {
       fatG: fatG,
       carbsG: carbsG,
     );
+    final comparisonBase = kcal.abs() > _epsilon
+        ? kcal.abs()
+        : computedCalories.abs();
     if ((computedCalories - kcal).abs() < _epsilon) {
+      return copyWith(clearError: true);
+    }
+    if (comparisonBase <= _epsilon) {
+      return copyWith(clearError: true);
+    }
+    final relativeDifference = (computedCalories - kcal).abs() / comparisonBase;
+    if (relativeDifference <= _existingConsistencyToleranceRatio) {
       return copyWith(clearError: true);
     }
     return copyWith(errorMessage: existingInconsistencyMessage);

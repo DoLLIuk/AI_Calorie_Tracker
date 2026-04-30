@@ -10,6 +10,7 @@ Important:
 - This logic is frontend-only and runs on the device.
 - Backend is not involved in manual meal add/edit recalculation.
 - Current implementation lives in `lib/main.dart` inside the manual meal bottom sheet flow and `_MealFormDraft`.
+- Existing meal consistency scan uses a `15%` tolerance for calorie-vs-macro mismatch, so small historical rounding differences do not trigger `Reset auto-calc`.
 
 ## Core Rules
 
@@ -103,7 +104,7 @@ Special confirm is shown only for this product case:
 Confirm copy:
 - title: `Keep calories fixed?`
 - body: `We’ll keep calories fixed and rebalance the other macros.`
-- secondary: `Keep editing`
+- secondary: `Save as entered`
 - primary: `Auto-adjust & save`
 
 ### What confirm respects
@@ -115,15 +116,11 @@ When confirm is built, the following are treated as fixed:
 
 Only remaining unlocked and not-manually-edited macros may be rebalanced automatically.
 
-### If the user taps `Keep editing`
+### If the user taps `Save as entered`
 
-- do not save
-- keep the sheet open
-- show helper text:
-
-```text
-Calories are locked. Unlock another macro or reset auto-calc to rebalance this meal.
-```
+- save immediately with the current entered values
+- keep the inconsistent nutrition values as-is
+- close the sheet
 
 ### If the user taps `Auto-adjust & save`
 
@@ -144,14 +141,6 @@ Show this message instead:
 All macros are manually locked. Unlock one macro or reset auto-calc to continue.
 ```
 
-### Rebalance helper
-
-If the user backs out of confirm with `Keep editing`, show:
-
-```text
-Calories are locked. Unlock another macro or reset auto-calc to rebalance this meal.
-```
-
 ## Reset and Unlock UX
 
 ### Unlock one field
@@ -169,6 +158,15 @@ The field-level unlock icon:
 - recalculates `Calories` from the current macros
 - keeps `Weight` unchanged
 
+### Restore previous values
+
+`Restore previous values`:
+- returns the form to the exact state it had when the current sheet session opened
+- restores current nutrition values from session start
+- restores lock state from session start
+- restores the current sheet name and selected meal type from session start
+- clears any edits made after opening the sheet by replacing them with the original session snapshot
+
 ## Analytics / Debug Tracking
 
 There is no external analytics SDK yet.
@@ -177,7 +175,7 @@ Current lightweight tracking uses `debugPrint` in debug mode through `_trackMeal
 
 Tracked events:
 - `meal_edit_locked_conflict_prompt_shown`
-- `meal_edit_locked_conflict_keep_editing`
+- `meal_edit_locked_conflict_save_as_entered`
 - `meal_edit_locked_conflict_auto_adjust_saved`
 - `meal_edit_locked_conflict_unresolvable`
 - `meal_edit_reset_auto_calc`
