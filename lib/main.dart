@@ -490,6 +490,14 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
     debugPrint('[clarification] $event ${jsonEncode(details)}');
   }
 
+  void _trackMealEditEvent(
+    String event, [
+    Map<String, Object?> details = const {},
+  ]) {
+    if (!kDebugMode) return;
+    debugPrint('[meal_edit] $event ${jsonEncode(details)}');
+  }
+
   double get _dailyCalorieTarget =>
       widget.onboardingResult?.plan.calorieTarget.toDouble() ?? 2000.0;
 
@@ -726,7 +734,226 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
         editingMeal?.userSelectedType ??
         editingMeal?.finalType ??
         classifyMealTypeByTime(DateTime.now());
-    String? formError;
+    var formDraft = _MealFormDraft.fromMeal(editingMeal);
+    String? formMessage = formDraft.inlineMessage;
+    var isApplyingDraft = false;
+    final mealEditSource = editingMeal == null ? 'add' : 'edit';
+
+    String numericHint(double? originalValue, String fallback) {
+      if (editingMeal == null || originalValue == null) return fallback;
+      return _formatMealSheetNumber(originalValue);
+    }
+
+    void updateControllerText(TextEditingController controller, String text) {
+      controller.value = controller.value.copyWith(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+        composing: TextRange.empty,
+      );
+    }
+
+    void syncControllersFromDraft({_MealEditField? preserveField}) {
+      if (isApplyingDraft) return;
+      isApplyingDraft = true;
+      if (preserveField != _MealEditField.calories) {
+        updateControllerText(kcalCtrl, formDraft.kcal.toStringAsFixed(1));
+      }
+      if (preserveField != _MealEditField.weight) {
+        updateControllerText(gramsCtrl, formDraft.grams.toStringAsFixed(1));
+      }
+      if (preserveField != _MealEditField.protein) {
+        updateControllerText(
+          proteinCtrl,
+          formDraft.proteinG.toStringAsFixed(1),
+        );
+      }
+      if (preserveField != _MealEditField.fat) {
+        updateControllerText(fatCtrl, formDraft.fatG.toStringAsFixed(1));
+      }
+      if (preserveField != _MealEditField.carbs) {
+        updateControllerText(carbsCtrl, formDraft.carbsG.toStringAsFixed(1));
+      }
+      isApplyingDraft = false;
+    }
+
+    void handleFieldChanged(
+      _MealEditField field,
+      String rawValue,
+      StateSetter setSheetState,
+    ) {
+      if (isApplyingDraft) return;
+      final parsedValue = _parseNonNegative(rawValue);
+      if (parsedValue == null) {
+        setSheetState(() {
+          if (formDraft.inlineMessage == null) {
+            formMessage = null;
+          }
+        });
+        return;
+      }
+
+      formDraft = formDraft.applyUserEdit(field, parsedValue);
+      syncControllersFromDraft(preserveField: field);
+      setSheetState(() {
+        formMessage = formDraft.inlineMessage;
+      });
+    }
+
+    void unlockField(_MealEditField field, StateSetter setSheetState) {
+      formDraft = formDraft.unlockField(field);
+      syncControllersFromDraft();
+      _trackMealEditEvent('meal_edit_unlock_field', {
+        'source': mealEditSource,
+        'field': field.name,
+        'locked_fields_count': formDraft.lockedFields.length,
+        'manually_edited_macro_count':
+            formDraft.manuallyEditedMacroFields.length,
+        'has_conflict': formDraft.errorMessage != null,
+      });
+      setSheetState(() {
+        formMessage = formDraft.inlineMessage;
+      });
+    }
+
+    void lockField(_MealEditField field, StateSetter setSheetState) {
+      if (formDraft.isLocked(field)) return;
+      formDraft = formDraft.lockField(field);
+      syncControllersFromDraft();
+      _trackMealEditEvent('meal_edit_lock_field', {
+        'source': mealEditSource,
+        'field': field.name,
+        'locked_fields_count': formDraft.lockedFields.length,
+        'manually_edited_macro_count':
+            formDraft.manuallyEditedMacroFields.length,
+        'has_conflict': formDraft.errorMessage != null,
+      });
+      setSheetState(() {
+        formMessage = formDraft.inlineMessage;
+      });
+    }
+
+    void resetAutoCalc(StateSetter setSheetState) {
+      formDraft = formDraft.resetAutoCalc();
+      syncControllersFromDraft();
+      _trackMealEditEvent('meal_edit_reset_auto_calc', {
+        'source': mealEditSource,
+        'locked_fields_count': formDraft.lockedFields.length,
+        'manually_edited_macro_count':
+            formDraft.manuallyEditedMacroFields.length,
+        'has_conflict': formDraft.errorMessage != null,
+      });
+      setSheetState(() {
+        formMessage = formDraft.inlineMessage;
+      });
+    }
+
+    Future<bool> showLockedCaloriesConfirm(
+      _MealLockedCaloriesAutoAdjustProposal proposal,
+    ) async {
+      final shouldAutoAdjust = await showModalBottomSheet<bool>(
+        context: context,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          final bottomSafeArea = MediaQuery.paddingOf(sheetContext).bottom;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(12, 8, 12, bottomSafeArea + 12),
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Keep calories fixed?',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'We’ll keep calories fixed and rebalance the other macros.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.35,
+                        color: Color(0xFF4B5563),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Updated fields: ${proposal.adjustedFieldLabels.join(', ')}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            key: const Key('locked-calories-keep-editing'),
+                            onPressed: () =>
+                                Navigator.of(sheetContext).pop(false),
+                            child: const Text('Keep editing'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            key: const Key('locked-calories-auto-save'),
+                            onPressed: () =>
+                                Navigator.of(sheetContext).pop(true),
+                            child: const Text('Auto-adjust & save'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+      return shouldAutoAdjust ?? false;
+    }
+
+    void persistMealDraft(
+      _MealFormDraft draftToSave,
+      StateSetter setSheetState,
+    ) {
+      final meal = _buildManualMeal(
+        original: editingMeal,
+        name: nameCtrl.text,
+        draft: draftToSave,
+        mealType: selectedMealType,
+      );
+      if (meal == null) {
+        setSheetState(
+          () => formMessage =
+              'Check fields: name is required and numbers must be >= 0.',
+        );
+        return;
+      }
+
+      setState(() {
+        final idx = meals.indexWhere((m) => m.requestId == meal.requestId);
+        if (idx >= 0) {
+          meals[idx] = meal;
+        } else {
+          meals.insert(0, meal);
+        }
+        _rebuildSessionsForDay(meal.day, notify: false);
+      });
+      _notifyMealsChanged();
+      Navigator.of(context).pop();
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -780,9 +1007,20 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                       const SizedBox(height: 12),
                       _sheetInput(
                         controller: kcalCtrl,
+                        fieldKeySuffix: 'calories',
                         label: 'Calories',
-                        hint: '0',
+                        hint: numericHint(editingMeal?.kcal, '0'),
                         numeric: true,
+                        isLocked: formDraft.isLocked(_MealEditField.calories),
+                        onDoubleTapLock: () =>
+                            lockField(_MealEditField.calories, setSheetState),
+                        onUnlock: () =>
+                            unlockField(_MealEditField.calories, setSheetState),
+                        onChanged: (value) => handleFieldChanged(
+                          _MealEditField.calories,
+                          value,
+                          setSheetState,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -790,18 +1028,52 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                           Expanded(
                             child: _sheetInput(
                               controller: gramsCtrl,
+                              fieldKeySuffix: 'weight',
                               label: 'Weight (g)',
-                              hint: '250',
+                              hint: numericHint(editingMeal?.portionG, '250'),
                               numeric: true,
+                              isLocked: formDraft.isLocked(
+                                _MealEditField.weight,
+                              ),
+                              onDoubleTapLock: () => lockField(
+                                _MealEditField.weight,
+                                setSheetState,
+                              ),
+                              onUnlock: () => unlockField(
+                                _MealEditField.weight,
+                                setSheetState,
+                              ),
+                              onChanged: (value) => handleFieldChanged(
+                                _MealEditField.weight,
+                                value,
+                                setSheetState,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: _sheetInput(
                               controller: proteinCtrl,
+                              fieldKeySuffix: 'protein',
                               label: 'Protein (g)',
-                              hint: '20',
+                              hint: numericHint(editingMeal?.proteinG, '20'),
                               numeric: true,
+                              isLocked: formDraft.isLocked(
+                                _MealEditField.protein,
+                              ),
+                              onDoubleTapLock: () => lockField(
+                                _MealEditField.protein,
+                                setSheetState,
+                              ),
+                              onUnlock: () => unlockField(
+                                _MealEditField.protein,
+                                setSheetState,
+                              ),
+                              onChanged: (value) => handleFieldChanged(
+                                _MealEditField.protein,
+                                value,
+                                setSheetState,
+                              ),
                             ),
                           ),
                         ],
@@ -812,18 +1084,48 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                           Expanded(
                             child: _sheetInput(
                               controller: fatCtrl,
+                              fieldKeySuffix: 'fat',
                               label: 'Fat (g)',
-                              hint: '8',
+                              hint: numericHint(editingMeal?.fatG, '8'),
                               numeric: true,
+                              isLocked: formDraft.isLocked(_MealEditField.fat),
+                              onDoubleTapLock: () =>
+                                  lockField(_MealEditField.fat, setSheetState),
+                              onUnlock: () => unlockField(
+                                _MealEditField.fat,
+                                setSheetState,
+                              ),
+                              onChanged: (value) => handleFieldChanged(
+                                _MealEditField.fat,
+                                value,
+                                setSheetState,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: _sheetInput(
                               controller: carbsCtrl,
+                              fieldKeySuffix: 'carbs',
                               label: 'Carbs (g)',
-                              hint: '30',
+                              hint: numericHint(editingMeal?.carbsG, '30'),
                               numeric: true,
+                              isLocked: formDraft.isLocked(
+                                _MealEditField.carbs,
+                              ),
+                              onDoubleTapLock: () => lockField(
+                                _MealEditField.carbs,
+                                setSheetState,
+                              ),
+                              onUnlock: () => unlockField(
+                                _MealEditField.carbs,
+                                setSheetState,
+                              ),
+                              onChanged: (value) => handleFieldChanged(
+                                _MealEditField.carbs,
+                                value,
+                                setSheetState,
+                              ),
                             ),
                           ),
                         ],
@@ -888,11 +1190,49 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                           ),
                         ],
                       ),
-                      if (formError != null) ...[
+                      if (formMessage != null) ...[
                         const SizedBox(height: 12),
-                        Text(
-                          formError!,
-                          style: const TextStyle(color: Colors.red),
+                        Container(
+                          key: const Key('meal-form-message'),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7D6),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFFACC15)),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Text(
+                            formMessage!,
+                            style: const TextStyle(
+                              color: Color(0xFF92400E),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (formDraft.shouldShowResetAutoCalc) ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: TextButton.icon(
+                            key: const Key('reset-auto-calc'),
+                            onPressed: () => resetAutoCalc(setSheetState),
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Reset auto-calc'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFB45309),
+                              backgroundColor: const Color(0xFFFFF7D6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                       const SizedBox(height: 16),
@@ -906,38 +1246,120 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () {
-                            final meal = _buildManualMeal(
-                              original: editingMeal,
-                              name: nameCtrl.text,
-                              kcal: kcalCtrl.text,
-                              grams: gramsCtrl.text,
-                              protein: proteinCtrl.text,
-                              fat: fatCtrl.text,
-                              carbs: carbsCtrl.text,
-                              mealType: selectedMealType,
+                          onPressed: () async {
+                            final kcalValue = _parseNonNegative(kcalCtrl.text);
+                            final gramsValue = _parseNonNegative(
+                              gramsCtrl.text,
                             );
-                            if (meal == null) {
+                            final proteinValue = _parseNonNegative(
+                              proteinCtrl.text,
+                            );
+                            final fatValue = _parseNonNegative(fatCtrl.text);
+                            final carbsValue = _parseNonNegative(
+                              carbsCtrl.text,
+                            );
+                            if (kcalValue == null ||
+                                gramsValue == null ||
+                                proteinValue == null ||
+                                fatValue == null ||
+                                carbsValue == null ||
+                                gramsValue <= 0) {
                               setSheetState(
-                                () => formError =
+                                () => formMessage =
                                     'Check fields: name is required and numbers must be >= 0.',
                               );
                               return;
                             }
 
-                            setState(() {
-                              final idx = meals.indexWhere(
-                                (m) => m.requestId == meal.requestId,
+                            final autoAdjustProposal = formDraft
+                                .buildAutoAdjustedDraftRespectingAllManualMacroChanges();
+                            if (autoAdjustProposal != null) {
+                              _trackMealEditEvent(
+                                'meal_edit_locked_conflict_prompt_shown',
+                                {
+                                  'source': mealEditSource,
+                                  'locked_fields_count':
+                                      formDraft.lockedFields.length,
+                                  'manually_edited_macro_count': formDraft
+                                      .manuallyEditedMacroFields
+                                      .length,
+                                  'adjusted_fields': autoAdjustProposal
+                                      .adjustedFields
+                                      .map((field) => field.name)
+                                      .toList(growable: false),
+                                  'has_conflict':
+                                      formDraft.errorMessage != null,
+                                },
                               );
-                              if (idx >= 0) {
-                                meals[idx] = meal;
-                              } else {
-                                meals.insert(0, meal);
+                              final shouldAutoAdjust =
+                                  await showLockedCaloriesConfirm(
+                                    autoAdjustProposal,
+                                  );
+                              if (!shouldAutoAdjust) {
+                                _trackMealEditEvent(
+                                  'meal_edit_locked_conflict_keep_editing',
+                                  {
+                                    'source': mealEditSource,
+                                    'locked_fields_count':
+                                        formDraft.lockedFields.length,
+                                    'manually_edited_macro_count': formDraft
+                                        .manuallyEditedMacroFields
+                                        .length,
+                                    'adjusted_fields': autoAdjustProposal
+                                        .adjustedFields
+                                        .map((field) => field.name)
+                                        .toList(growable: false),
+                                    'has_conflict':
+                                        formDraft.errorMessage != null,
+                                  },
+                                );
+                                setSheetState(() {
+                                  formMessage =
+                                      formDraft.keepEditingHelperMessage;
+                                });
+                                return;
                               }
-                              _rebuildSessionsForDay(meal.day, notify: false);
-                            });
-                            _notifyMealsChanged();
-                            Navigator.of(context).pop();
+                              formDraft = autoAdjustProposal.adjustedDraft;
+                              syncControllersFromDraft();
+                              _trackMealEditEvent(
+                                'meal_edit_locked_conflict_auto_adjust_saved',
+                                {
+                                  'source': mealEditSource,
+                                  'locked_fields_count':
+                                      formDraft.lockedFields.length,
+                                  'manually_edited_macro_count': formDraft
+                                      .manuallyEditedMacroFields
+                                      .length,
+                                  'adjusted_fields': autoAdjustProposal
+                                      .adjustedFields
+                                      .map((field) => field.name)
+                                      .toList(growable: false),
+                                  'has_conflict':
+                                      formDraft.errorMessage != null,
+                                },
+                              );
+                              setSheetState(() {
+                                formMessage = formDraft.inlineMessage;
+                              });
+                            } else if (formDraft.hasCaloriesLockedConflict) {
+                              _trackMealEditEvent(
+                                'meal_edit_locked_conflict_unresolvable',
+                                {
+                                  'source': mealEditSource,
+                                  'locked_fields_count':
+                                      formDraft.lockedFields.length,
+                                  'manually_edited_macro_count': formDraft
+                                      .manuallyEditedMacroFields
+                                      .length,
+                                  'has_conflict':
+                                      formDraft.errorMessage != null,
+                                },
+                              );
+                              setSheetState(() {
+                                formMessage = formDraft.inlineMessage;
+                              });
+                            }
+                            persistMealDraft(formDraft, setSheetState);
                           },
                           child: Text(
                             editingMeal == null ? 'Add Meal' : 'Save Changes',
@@ -963,8 +1385,16 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
     required TextEditingController controller,
     required String label,
     required String hint,
+    String? fieldKeySuffix,
     bool numeric = false,
+    bool isLocked = false,
+    VoidCallback? onDoubleTapLock,
+    VoidCallback? onUnlock,
+    ValueChanged<String>? onChanged,
   }) {
+    final borderColor = isLocked
+        ? const Color(0xFFFACC15)
+        : const Color(0x00000000);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -973,23 +1403,94 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: numeric
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : TextInputType.text,
-          decoration: InputDecoration(
-            hintText: hint,
-            filled: true,
-            fillColor: const Color(0xFFF2F4F8),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
+        GestureDetector(
+          onDoubleTap: isLocked ? null : onDoubleTapLock,
+          behavior: HitTestBehavior.translucent,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                key: fieldKeySuffix == null
+                    ? null
+                    : Key('meal-input-$fieldKeySuffix'),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F4F8),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: borderColor,
+                    width: isLocked ? 2 : 0,
+                  ),
+                ),
+                child: TextField(
+                  controller: controller,
+                  onChanged: onChanged,
+                  keyboardType: numeric
+                      ? const TextInputType.numberWithOptions(decimal: true)
+                      : TextInputType.text,
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    contentPadding: EdgeInsets.fromLTRB(
+                      14,
+                      14,
+                      isLocked ? 40 : 14,
+                      14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: isLocked
+                            ? const Color(0xFFFACC15)
+                            : const Color(0xFF7E9EF1),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (isLocked && onUnlock != null)
+                Positioned(
+                  right: -6,
+                  bottom: -6,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: Key('meal-lock-${fieldKeySuffix ?? label}'),
+                      onTap: onUnlock,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Ink(
+                        width: 26,
+                        height: 26,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFACC15),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x22000000),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.lock_rounded,
+                          size: 14,
+                          color: Color(0xFF7C2D12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -1046,43 +1547,33 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
   _MealEntry? _buildManualMeal({
     required _MealEntry? original,
     required String name,
-    required String kcal,
-    required String grams,
-    required String protein,
-    required String fat,
-    required String carbs,
+    required _MealFormDraft draft,
     required MealType mealType,
   }) {
     final mealName = name.trim();
-    final gramsValue = _parseNonNegative(grams);
-
-    if (mealName.isEmpty || gramsValue == null) {
+    if (mealName.isEmpty || draft.grams <= 0) {
       return null;
     }
 
     if (original != null) {
-      final oldGrams = original.portionG;
-      if (oldGrams == null || oldGrams <= 0 || gramsValue <= 0) {
-        return null;
-      }
+      final per100Factor = 100.0 / draft.grams;
 
-      final factor = gramsValue / oldGrams;
       return _MealEntry(
         requestId: original.requestId,
         origin: original.origin,
         name: mealName,
         day: original.day,
         timestamp: original.timestamp,
-        kcal: original.kcal * factor,
-        proteinG: original.proteinG * factor,
-        carbsG: original.carbsG * factor,
-        fatG: original.fatG * factor,
-        portionG: gramsValue,
+        kcal: draft.kcal,
+        proteinG: draft.proteinG,
+        carbsG: draft.carbsG,
+        fatG: draft.fatG,
+        portionG: draft.grams,
         confidence: original.confidence,
-        per100Kcal: original.per100Kcal,
-        per100ProteinG: original.per100ProteinG,
-        per100CarbsG: original.per100CarbsG,
-        per100FatG: original.per100FatG,
+        per100Kcal: draft.kcal * per100Factor,
+        per100ProteinG: draft.proteinG * per100Factor,
+        per100CarbsG: draft.carbsG * per100Factor,
+        per100FatG: draft.fatG * per100Factor,
         userSelectedType: mealType,
         sessionId: original.sessionId,
         autoDetectedType: original.autoDetectedType,
@@ -1092,20 +1583,7 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
       );
     }
 
-    final kcalValue = _parseNonNegative(kcal);
-    final proteinValue = _parseNonNegative(protein);
-    final fatValue = _parseNonNegative(fat);
-    final carbsValue = _parseNonNegative(carbs);
-
-    if (kcalValue == null ||
-        proteinValue == null ||
-        fatValue == null ||
-        carbsValue == null ||
-        gramsValue <= 0) {
-      return null;
-    }
-
-    final factor = 100.0 / gramsValue;
+    final factor = 100.0 / draft.grams;
     final now = DateTime.now();
     final entryTimestamp = DateTime(
       _selectedDate.year,
@@ -1123,16 +1601,16 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
       name: mealName,
       day: _selectedDate,
       timestamp: entryTimestamp,
-      kcal: kcalValue,
-      proteinG: proteinValue,
-      carbsG: carbsValue,
-      fatG: fatValue,
-      portionG: gramsValue,
+      kcal: draft.kcal,
+      proteinG: draft.proteinG,
+      carbsG: draft.carbsG,
+      fatG: draft.fatG,
+      portionG: draft.grams,
       confidence: 1.0,
-      per100Kcal: kcalValue * factor,
-      per100ProteinG: proteinValue * factor,
-      per100CarbsG: carbsValue * factor,
-      per100FatG: fatValue * factor,
+      per100Kcal: draft.kcal * factor,
+      per100ProteinG: draft.proteinG * factor,
+      per100CarbsG: draft.carbsG * factor,
+      per100FatG: draft.fatG * factor,
       userSelectedType: mealType,
       sessionId: '',
       autoDetectedType: MealType.snack,
@@ -1146,6 +1624,13 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
     final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
     if (parsed == null || parsed < 0) return null;
     return parsed;
+  }
+
+  String _formatMealSheetNumber(double value) {
+    if ((value - value.roundToDouble()).abs() < 0.0001) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(1);
   }
 
   Future<void> _showPortionBottomSheet() async {
@@ -3178,6 +3663,437 @@ String _activityLabel(ActivityLevel level) {
     case ActivityLevel.athlete:
       return 'Very active';
   }
+}
+
+enum _MealEditField { weight, calories, protein, fat, carbs }
+
+class _MealLockedCaloriesAutoAdjustProposal {
+  final _MealFormDraft adjustedDraft;
+  final List<_MealEditField> adjustedFields;
+
+  const _MealLockedCaloriesAutoAdjustProposal({
+    required this.adjustedDraft,
+    required this.adjustedFields,
+  });
+
+  List<String> get adjustedFieldLabels => adjustedFields
+      .map(
+        (field) => switch (field) {
+          _MealEditField.protein => 'Protein',
+          _MealEditField.fat => 'Fat',
+          _MealEditField.carbs => 'Carbs',
+          _MealEditField.weight => 'Weight',
+          _MealEditField.calories => 'Calories',
+        },
+      )
+      .toList(growable: false);
+}
+
+class _MealFormDraft {
+  static const String conflictMessage =
+      'This field can’t be auto-adjusted because other nutrition values were edited manually.';
+  static const String existingInconsistencyMessage =
+      'This meal has inconsistent nutrition values. Reset auto-calc to normalize it.';
+  static const String allMacrosLockedMessage =
+      'All macros are manually locked. Unlock one macro or reset auto-calc to continue.';
+  static const String lockedCaloriesRebalanceMessage =
+      'Calories are locked. Unlock another macro or reset auto-calc to rebalance this meal.';
+  static const double _epsilon = 0.0001;
+  static const Set<_MealEditField> _macroFields = {
+    _MealEditField.protein,
+    _MealEditField.fat,
+    _MealEditField.carbs,
+  };
+
+  final double grams;
+  final double kcal;
+  final double proteinG;
+  final double fatG;
+  final double carbsG;
+  final Set<_MealEditField> lockedFields;
+  final Set<_MealEditField> manuallyEditedMacroFields;
+  final String? errorMessage;
+  final _MealEditField? lastEditedField;
+
+  const _MealFormDraft({
+    required this.grams,
+    required this.kcal,
+    required this.proteinG,
+    required this.fatG,
+    required this.carbsG,
+    required this.lockedFields,
+    required this.manuallyEditedMacroFields,
+    this.errorMessage,
+    this.lastEditedField,
+  });
+
+  factory _MealFormDraft.fromMeal(_MealEntry? meal) {
+    return _MealFormDraft(
+      grams: meal?.portionG ?? 0,
+      kcal: meal?.kcal ?? 0,
+      proteinG: meal?.proteinG ?? 0,
+      fatG: meal?.fatG ?? 0,
+      carbsG: meal?.carbsG ?? 0,
+      lockedFields: const <_MealEditField>{},
+      manuallyEditedMacroFields: const <_MealEditField>{},
+      lastEditedField: null,
+    )._validateExistingConsistency();
+  }
+
+  _MealFormDraft copyWith({
+    double? grams,
+    double? kcal,
+    double? proteinG,
+    double? fatG,
+    double? carbsG,
+    Set<_MealEditField>? lockedFields,
+    Set<_MealEditField>? manuallyEditedMacroFields,
+    String? errorMessage,
+    _MealEditField? lastEditedField,
+    bool clearError = false,
+    bool clearLastEditedField = false,
+  }) {
+    return _MealFormDraft(
+      grams: grams ?? this.grams,
+      kcal: kcal ?? this.kcal,
+      proteinG: proteinG ?? this.proteinG,
+      fatG: fatG ?? this.fatG,
+      carbsG: carbsG ?? this.carbsG,
+      lockedFields: lockedFields ?? this.lockedFields,
+      manuallyEditedMacroFields:
+          manuallyEditedMacroFields ?? this.manuallyEditedMacroFields,
+      errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      lastEditedField: clearLastEditedField
+          ? null
+          : (lastEditedField ?? this.lastEditedField),
+    );
+  }
+
+  bool isLocked(_MealEditField field) => lockedFields.contains(field);
+  bool get hasLockedFields => lockedFields.isNotEmpty;
+  bool get shouldShowResetAutoCalc =>
+      hasLockedFields || errorMessage == existingInconsistencyMessage;
+  bool get hasCaloriesLockedConflict =>
+      isLocked(_MealEditField.calories) && errorMessage == conflictMessage;
+  bool get allMacrosManuallyEdited =>
+      manuallyEditedMacroFields.length == _macroFields.length;
+
+  String? get inlineMessage {
+    if (errorMessage == null) return null;
+    if (errorMessage != conflictMessage) return errorMessage;
+    if (!hasCaloriesLockedConflict) return conflictMessage;
+    if (buildAutoAdjustedDraftRespectingAllManualMacroChanges() != null) {
+      return null;
+    }
+    if (allMacrosManuallyEdited) {
+      return allMacrosLockedMessage;
+    }
+    return lockedCaloriesRebalanceMessage;
+  }
+
+  String? get keepEditingHelperMessage {
+    if (!hasCaloriesLockedConflict) return null;
+    if (buildAutoAdjustedDraftRespectingAllManualMacroChanges() != null) {
+      return lockedCaloriesRebalanceMessage;
+    }
+    return inlineMessage;
+  }
+
+  _MealFormDraft applyUserEdit(_MealEditField field, double value) {
+    final nextLockedFields = Set<_MealEditField>.from(lockedFields)..add(field);
+    final nextManuallyEditedMacroFields = Set<_MealEditField>.from(
+      manuallyEditedMacroFields,
+    );
+    if (_macroFields.contains(field)) {
+      nextManuallyEditedMacroFields.add(field);
+    }
+    var next = copyWith(
+      lockedFields: nextLockedFields,
+      manuallyEditedMacroFields: nextManuallyEditedMacroFields,
+      clearError: true,
+      lastEditedField: field,
+    )._withFieldValue(field, value);
+
+    if (field == _MealEditField.weight) {
+      next = next._applyWeightChange(previousWeight: grams);
+    } else if (field == _MealEditField.calories) {
+      next = next._rebalanceUnlockedMacrosToTargetCalories();
+    } else {
+      next = isLocked(_MealEditField.calories)
+          ? next._validateLockedCaloriesConflict()
+          : next._syncCaloriesToMacros();
+    }
+
+    return next;
+  }
+
+  _MealFormDraft lockField(_MealEditField field) {
+    final nextLockedFields = Set<_MealEditField>.from(lockedFields)..add(field);
+    final next = copyWith(lockedFields: nextLockedFields, clearError: true);
+    if (!next.isLocked(_MealEditField.calories)) {
+      return next._syncCaloriesToMacros();
+    }
+    return next._validateLockedCaloriesConflict();
+  }
+
+  _MealFormDraft unlockField(_MealEditField field) {
+    final nextLockedFields = Set<_MealEditField>.from(lockedFields)
+      ..remove(field);
+    final nextManuallyEditedMacroFields = Set<_MealEditField>.from(
+      manuallyEditedMacroFields,
+    )..remove(field);
+    var next = copyWith(
+      lockedFields: nextLockedFields,
+      manuallyEditedMacroFields: nextManuallyEditedMacroFields,
+      clearError: true,
+      clearLastEditedField: lastEditedField == field,
+    );
+    if (!next.isLocked(_MealEditField.calories)) {
+      return next._syncCaloriesToMacros();
+    }
+    return next._rebalanceUnlockedMacrosToTargetCalories();
+  }
+
+  _MealFormDraft resetAutoCalc() {
+    return copyWith(
+      lockedFields: <_MealEditField>{},
+      manuallyEditedMacroFields: <_MealEditField>{},
+      clearError: true,
+      clearLastEditedField: true,
+    )._syncCaloriesToMacros();
+  }
+
+  _MealLockedCaloriesAutoAdjustProposal?
+  buildAutoAdjustedDraftRespectingAllManualMacroChanges() {
+    if (errorMessage != conflictMessage ||
+        !isLocked(_MealEditField.calories) ||
+        manuallyEditedMacroFields.isEmpty) {
+      return null;
+    }
+
+    final adjustedFields = _macroFields
+        .where(
+          (field) =>
+              !isLocked(field) && !manuallyEditedMacroFields.contains(field),
+        )
+        .toList(growable: false);
+    if (adjustedFields.isEmpty) {
+      return null;
+    }
+
+    final fixedMacroFields = _macroFields
+        .where(
+          (field) =>
+              isLocked(field) || manuallyEditedMacroFields.contains(field),
+        )
+        .toList(growable: false);
+    final fixedCalories = fixedMacroFields.fold(
+      0.0,
+      (sum, field) => sum + _caloriesForField(field),
+    );
+    final adjustableCalories = adjustedFields.fold(
+      0.0,
+      (sum, field) => sum + _caloriesForField(field),
+    );
+    final remainingCalories = kcal - fixedCalories;
+
+    if (remainingCalories < -_epsilon || adjustableCalories.abs() < _epsilon) {
+      return null;
+    }
+
+    final ratio = remainingCalories / adjustableCalories;
+    if (ratio < -_epsilon) {
+      return null;
+    }
+
+    var adjustedDraft = copyWith(clearError: true);
+    for (final field in adjustedFields) {
+      adjustedDraft = adjustedDraft._withFieldValue(
+        field,
+        adjustedDraft._valueForField(field) * ratio,
+      );
+    }
+
+    return _MealLockedCaloriesAutoAdjustProposal(
+      adjustedDraft: adjustedDraft.copyWith(
+        clearError: true,
+        lastEditedField: lastEditedField,
+      ),
+      adjustedFields: adjustedFields,
+    );
+  }
+
+  _MealFormDraft _withFieldValue(_MealEditField field, double value) {
+    switch (field) {
+      case _MealEditField.weight:
+        return copyWith(grams: value);
+      case _MealEditField.calories:
+        return copyWith(kcal: value);
+      case _MealEditField.protein:
+        return copyWith(proteinG: value);
+      case _MealEditField.fat:
+        return copyWith(fatG: value);
+      case _MealEditField.carbs:
+        return copyWith(carbsG: value);
+    }
+  }
+
+  _MealFormDraft _applyWeightChange({required double previousWeight}) {
+    if (previousWeight <= 0 || grams <= 0) {
+      return isLocked(_MealEditField.calories)
+          ? copyWith(clearError: true)
+          : _syncCaloriesToMacros();
+    }
+
+    final ratio = grams / previousWeight;
+    var next = this;
+    if (!isLocked(_MealEditField.calories)) {
+      next = next.copyWith(kcal: kcal * ratio);
+    }
+    if (!isLocked(_MealEditField.protein)) {
+      next = next.copyWith(proteinG: proteinG * ratio);
+    }
+    if (!isLocked(_MealEditField.fat)) {
+      next = next.copyWith(fatG: fatG * ratio);
+    }
+    if (!isLocked(_MealEditField.carbs)) {
+      next = next.copyWith(carbsG: carbsG * ratio);
+    }
+
+    return next.isLocked(_MealEditField.calories)
+        ? next._rebalanceUnlockedMacrosToTargetCalories()
+        : next._syncCaloriesToMacros();
+  }
+
+  _MealFormDraft _syncCaloriesToMacros() {
+    return copyWith(
+      kcal: _mealCaloriesFromMacros(
+        proteinG: proteinG,
+        fatG: fatG,
+        carbsG: carbsG,
+      ),
+      clearError: true,
+    );
+  }
+
+  _MealFormDraft _validateExistingConsistency() {
+    final computedCalories = _mealCaloriesFromMacros(
+      proteinG: proteinG,
+      fatG: fatG,
+      carbsG: carbsG,
+    );
+    if ((computedCalories - kcal).abs() < _epsilon) {
+      return copyWith(clearError: true);
+    }
+    return copyWith(errorMessage: existingInconsistencyMessage);
+  }
+
+  _MealFormDraft _validateLockedCaloriesConflict() {
+    final computedCalories = _mealCaloriesFromMacros(
+      proteinG: proteinG,
+      fatG: fatG,
+      carbsG: carbsG,
+    );
+    if ((computedCalories - kcal).abs() < _epsilon) {
+      return copyWith(clearError: true);
+    }
+    return copyWith(errorMessage: conflictMessage);
+  }
+
+  _MealFormDraft _rebalanceUnlockedMacrosToTargetCalories() {
+    final lockedMacroCalories = _macroFields
+        .where(isLocked)
+        .fold(0.0, (sum, field) => sum + _caloriesForField(field));
+    final adjustableFields = _macroFields.where((field) => !isLocked(field));
+    final adjustableCalories = adjustableFields.fold(
+      0.0,
+      (sum, field) => sum + _caloriesForField(field),
+    );
+    final remainingCalories = kcal - lockedMacroCalories;
+
+    if (remainingCalories < -_epsilon) {
+      return copyWith(errorMessage: conflictMessage);
+    }
+
+    final adjustableFieldList = adjustableFields.toList(growable: false);
+    if (adjustableFieldList.isEmpty) {
+      return (_mealCaloriesFromMacros(
+                        proteinG: proteinG,
+                        fatG: fatG,
+                        carbsG: carbsG,
+                      ) -
+                      kcal)
+                  .abs() <
+              _epsilon
+          ? copyWith(clearError: true)
+          : copyWith(errorMessage: conflictMessage);
+    }
+
+    if (adjustableCalories.abs() < _epsilon) {
+      if (remainingCalories.abs() < _epsilon) {
+        var zeroed = this;
+        for (final field in adjustableFieldList) {
+          zeroed = zeroed._withFieldValue(field, 0);
+        }
+        return zeroed.copyWith(clearError: true);
+      }
+      return copyWith(errorMessage: conflictMessage);
+    }
+
+    final ratio = remainingCalories / adjustableCalories;
+    if (ratio < -_epsilon) {
+      return copyWith(errorMessage: conflictMessage);
+    }
+
+    var next = this;
+    for (final field in adjustableFieldList) {
+      next = next._withFieldValue(field, _valueForField(field) * ratio);
+    }
+
+    return copyWith(
+      proteinG: next.proteinG,
+      fatG: next.fatG,
+      carbsG: next.carbsG,
+      clearError: true,
+    );
+  }
+
+  double _valueForField(_MealEditField field) {
+    switch (field) {
+      case _MealEditField.weight:
+        return grams;
+      case _MealEditField.calories:
+        return kcal;
+      case _MealEditField.protein:
+        return proteinG;
+      case _MealEditField.fat:
+        return fatG;
+      case _MealEditField.carbs:
+        return carbsG;
+    }
+  }
+
+  double _caloriesForField(_MealEditField field) {
+    switch (field) {
+      case _MealEditField.protein:
+        return proteinG * 4;
+      case _MealEditField.fat:
+        return fatG * 9;
+      case _MealEditField.carbs:
+        return carbsG * 4;
+      case _MealEditField.weight:
+      case _MealEditField.calories:
+        return 0;
+    }
+  }
+}
+
+double _mealCaloriesFromMacros({
+  required double proteinG,
+  required double fatG,
+  required double carbsG,
+}) {
+  return (proteinG * 4) + (fatG * 9) + (carbsG * 4);
 }
 
 class _MealEntry {

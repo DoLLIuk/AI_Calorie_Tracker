@@ -42,6 +42,10 @@
   - controller state machine
   - picker abstraction
   - repository interface
+- Manual meal add/edit nutrition sync:
+  - currently implemented locally in `lib/main.dart`
+  - `_MealFormDraft` is the state/calculation helper for realtime manual meal editing
+  - see `docs/MEAL_EDIT_AUTO_CALC.md` for the exact product rules and edge cases
 - `lib/onboarding.dart`:
   - multi-step onboarding flow
   - profile validation

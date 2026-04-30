@@ -14,7 +14,7 @@ Flutter calorie tracking app with onboarding-based nutrition targets, AI photo a
   - gallery photo -> AI analysis
   - full manual add form (including meal type selection)
 - Portion confirmation flow when backend asks for user confirmation.
-- Meal edit/delete flow with proportional macro recalculation when grams are changed.
+- Meal edit/delete flow with realtime auto-calc, session-scoped locks, unlock/reset controls, and locked-calories conflict confirmation.
 - Local persistence for onboarding + meals via `SharedPreferences`.
 
 ## Tech stack
@@ -33,6 +33,7 @@ Flutter calorie tracking app with onboarding-based nutrition targets, AI photo a
 - `lib/app_config.dart` - runtime config from dart defines
 - `lib/photo_food/` - API client, repository contract, controller state machine, models, picker abstraction, error mapping
 - `test/` - unit + widget tests for key behavior
+- `docs/MEAL_EDIT_AUTO_CALC.md` - detailed rules for manual meal add/edit nutrition synchronization
 
 ## Current timeline/session logic
 

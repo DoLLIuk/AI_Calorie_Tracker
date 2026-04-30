@@ -1211,12 +1211,766 @@ void main() {
       await tester.ensureVisible(find.text('Test Meal'));
       await tester.tap(find.text('Test Meal'));
       await tester.pumpAndSettle();
-      expect(find.text('Calories: 100.0 kcal'), findsOneWidget);
+      expect(find.text('Calories: 124.0 kcal'), findsOneWidget);
       expect(find.text('Protein: 10.0 g'), findsOneWidget);
       expect(find.text('Fat: 4.0 g'), findsOneWidget);
       expect(find.text('Carbs: 12.0 g'), findsOneWidget);
     },
   );
+  testWidgets('editing meal protein saves manual macro override', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Protein Edit Meal');
+    await tester.enterText(fields.at(1), '250');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Protein Edit Meal'));
+    await tester.tap(find.text('Protein Edit Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(3), '40');
+    await tester.ensureVisible(find.text('Save Changes'));
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Protein Edit Meal'));
+    await tester.tap(find.text('Protein Edit Meal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Calories: 370.0 kcal'), findsOneWidget);
+    expect(find.text('Protein: 40.0 g'), findsOneWidget);
+    expect(find.text('Fat: 10.0 g'), findsOneWidget);
+    expect(find.text('Carbs: 30.0 g'), findsOneWidget);
+  });
+  testWidgets('editing meal uses original meal values as numeric hints', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Hint Source Meal');
+    await tester.enterText(fields.at(1), '290');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Hint Source Meal'));
+    await tester.tap(find.text('Hint Source Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(editFields[1].decoration?.hintText, '290');
+    expect(editFields[2].decoration?.hintText, '250');
+    expect(editFields[3].decoration?.hintText, '25');
+    expect(editFields[4].decoration?.hintText, '10');
+    expect(editFields[5].decoration?.hintText, '30');
+  });
+  testWidgets('editing inconsistent meal shows reset auto calc immediately', (
+    tester,
+  ) async {
+    final now = DateTime(2026, 4, 2, 13, 0);
+    SharedPreferences.setMockInitialValues({
+      'app.meals': jsonEncode([
+        {
+          'requestId': 'manual_inconsistent',
+          'origin': 'manual',
+          'name': 'Inconsistent Meal',
+          'day': now.toIso8601String(),
+          'timestamp': now.toIso8601String(),
+          'kcal': 500.0,
+          'proteinG': 25.0,
+          'carbsG': 30.0,
+          'fatG': 10.0,
+          'portionG': 250.0,
+          'confidence': 1.0,
+          'per100Kcal': 200.0,
+          'per100ProteinG': 10.0,
+          'per100CarbsG': 12.0,
+          'per100FatG': 4.0,
+          'autoDetectedType': 'lunch',
+          'finalType': 'lunch',
+          'autoDetectedTier': 'extra',
+          'finalTier': 'extra',
+          'sessionId': 'manual_inconsistent',
+        },
+      ]),
+    });
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        nowProvider: () => now,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Inconsistent Meal'));
+    await tester.tap(find.text('Inconsistent Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('reset-auto-calc')), findsOneWidget);
+    expect(
+      find.text(
+        'This meal has inconsistent nutrition values. Reset auto-calc to normalize it.',
+      ),
+      findsOneWidget,
+    );
+  });
+  testWidgets('locked calories protein conflict opens keep editing confirm', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Locked Calories Proposal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Locked Calories Proposal'));
+    await tester.tap(find.text('Locked Calories Proposal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(1), '400');
+    await tester.enterText(editFields.at(3), '40');
+    await tester.ensureVisible(find.text('Save Changes'));
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keep calories fixed?'), findsOneWidget);
+    expect(
+      find.byKey(const Key('locked-calories-keep-editing')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('locked-calories-auto-save')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('locked-calories-keep-editing')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keep calories fixed?'), findsNothing);
+    expect(find.text('Save Changes'), findsOneWidget);
+    expect(
+      find.text(
+        'Calories are locked. Unlock another macro or reset auto-calc to rebalance this meal.',
+      ),
+      findsOneWidget,
+    );
+  });
+  testWidgets('locked calories protein conflict auto adjusts and saves', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Protein Auto Save Meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Protein Auto Save Meal'));
+    await tester.tap(find.text('Protein Auto Save Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(1), '400');
+    await tester.enterText(editFields.at(3), '40');
+    await tester.ensureVisible(find.text('Save Changes'));
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keep calories fixed?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('locked-calories-auto-save')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Protein Auto Save Meal'));
+    await tester.tap(find.text('Protein Auto Save Meal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Calories: 400.0 kcal'), findsOneWidget);
+    expect(find.text('Protein: 40.0 g'), findsOneWidget);
+    expect(find.text('Fat: 11.4 g'), findsOneWidget);
+    expect(find.text('Carbs: 34.3 g'), findsOneWidget);
+  });
+  testWidgets('locked field shows yellow outline and unlock icon', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(3), '40');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('meal-lock-protein')), findsOneWidget);
+    final proteinContainer = tester.widget<Container>(
+      find.byKey(const Key('meal-input-protein')),
+    );
+    final decoration = proteinContainer.decoration! as BoxDecoration;
+    final border = decoration.border! as Border;
+    expect(border.top.color, const Color(0xFFFACC15));
+  });
+  testWidgets('double tap locks meal field without changing its value', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Double Tap Lock Meal');
+    await tester.enterText(fields.at(1), '250');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Double Tap Lock Meal'));
+    await tester.tap(find.text('Double Tap Lock Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final proteinField = find.byKey(const Key('meal-input-protein'));
+    await tester.tap(proteinField);
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.tap(proteinField);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('meal-lock-protein')), findsOneWidget);
+    final proteinContainer = tester.widget<Container>(proteinField);
+    final decoration = proteinContainer.decoration! as BoxDecoration;
+    final border = decoration.border! as Border;
+    expect(border.top.color, const Color(0xFFFACC15));
+
+    final proteinTextField = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .elementAt(3);
+    expect(proteinTextField.controller?.text, '25.0');
+  });
+  testWidgets('unlocking calories immediately recalculates them from macros', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.enterText(fields.at(1), '400');
+    await tester.enterText(fields.at(3), '40');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('meal-lock-calories')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('meal-lock-calories')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('meal-lock-calories')), findsNothing);
+    expect(find.text('370.0'), findsOneWidget);
+  });
+  testWidgets('locked protein stays fixed when calories are edited later', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Locked Protein Meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.enterText(fields.at(3), '40');
+    await tester.enterText(fields.at(1), '500');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Locked Protein Meal'));
+    await tester.tap(find.text('Locked Protein Meal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Calories: 500.0 kcal'), findsOneWidget);
+    expect(find.text('Protein: 40.0 g'), findsOneWidget);
+  });
+  testWidgets('locked calories fat conflict auto adjusts and saves', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Fat Auto Save Meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Fat Auto Save Meal'));
+    await tester.tap(find.text('Fat Auto Save Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(1), '400');
+    await tester.enterText(editFields.at(4), '25');
+    await tester.ensureVisible(find.text('Save Changes'));
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keep calories fixed?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('locked-calories-auto-save')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Fat Auto Save Meal'));
+    await tester.tap(find.text('Fat Auto Save Meal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Calories: 400.0 kcal'), findsOneWidget);
+    expect(find.text('Protein: 19.9 g'), findsOneWidget);
+    expect(find.text('Fat: 25.0 g'), findsOneWidget);
+    expect(find.text('Carbs: 23.9 g'), findsOneWidget);
+  });
+  testWidgets(
+    'locked calories confirm respects all manual macro changes in one session',
+    (tester) async {
+      final controller = PhotoFoodController(
+        repository: _FakeRepository(),
+        photoPicker: _FakePicker(file: null),
+      );
+
+      await tester.pumpWidget(
+        MyApp(controller: controller, skipOnboarding: true),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('fab-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('add-manual')));
+      await tester.pumpAndSettle();
+
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), 'Multi Manual Macro Meal');
+      await tester.enterText(fields.at(2), '250');
+      await tester.enterText(fields.at(3), '25');
+      await tester.enterText(fields.at(4), '10');
+      await tester.enterText(fields.at(5), '30');
+      await tester.ensureVisible(find.text('Add Meal').last);
+      await tester.tap(find.text('Add Meal').last);
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Multi Manual Macro Meal'));
+      await tester.tap(find.text('Multi Manual Macro Meal'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+
+      final editFields = find.byType(TextField);
+      await tester.enterText(editFields.at(1), '400');
+      await tester.enterText(editFields.at(3), '40');
+      await tester.enterText(editFields.at(4), '20');
+      await tester.ensureVisible(find.text('Save Changes'));
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Keep calories fixed?'), findsOneWidget);
+      expect(find.text('Updated fields: Carbs'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('locked-calories-auto-save')));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Multi Manual Macro Meal'));
+      await tester.tap(find.text('Multi Manual Macro Meal'));
+      await tester.pumpAndSettle();
+      expect(find.text('Calories: 400.0 kcal'), findsOneWidget);
+      expect(find.text('Protein: 40.0 g'), findsOneWidget);
+      expect(find.text('Fat: 20.0 g'), findsOneWidget);
+      expect(find.text('Carbs: 15.0 g'), findsOneWidget);
+    },
+  );
+  testWidgets('locked calories carbs conflict auto adjusts and saves', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Carbs Auto Save Meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Carbs Auto Save Meal'));
+    await tester.tap(find.text('Carbs Auto Save Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(1), '400');
+    await tester.enterText(editFields.at(5), '60');
+    await tester.ensureVisible(find.text('Save Changes'));
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keep calories fixed?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('locked-calories-auto-save')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Carbs Auto Save Meal'));
+    await tester.tap(find.text('Carbs Auto Save Meal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Calories: 400.0 kcal'), findsOneWidget);
+    expect(find.text('Protein: 21.1 g'), findsOneWidget);
+    expect(find.text('Fat: 8.4 g'), findsOneWidget);
+    expect(find.text('Carbs: 60.0 g'), findsOneWidget);
+  });
+  testWidgets('unlocking protein lets auto-calc rebalance it again', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '40');
+    await tester.enterText(fields.at(4), '20');
+    await tester.enterText(fields.at(5), '50');
+    await tester.enterText(fields.at(1), '400');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'All macros are manually locked. Unlock one macro or reset auto-calc to continue.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('meal-lock-protein')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('meal-lock-protein')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('meal-lock-protein')), findsNothing);
+    expect(find.text('5.0'), findsOneWidget);
+    expect(
+      find.text(
+        'All macros are manually locked. Unlock one macro or reset auto-calc to continue.',
+      ),
+      findsNothing,
+    );
+    expect(
+      find.text(
+        'This field can’t be auto-adjusted because other nutrition values were edited manually.',
+      ),
+      findsNothing,
+    );
+  });
+  testWidgets('locked protein remains unchanged when weight changes later', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Weight Lock Meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Weight Lock Meal'));
+    await tester.tap(find.text('Weight Lock Meal'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit'));
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    final editFields = find.byType(TextField);
+    await tester.enterText(editFields.at(3), '40');
+    await tester.enterText(editFields.at(2), '500');
+    await tester.ensureVisible(find.text('Save Changes'));
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Weight Lock Meal'));
+    await tester.tap(find.text('Weight Lock Meal'));
+    await tester.pumpAndSettle();
+    expect(find.text('Protein: 40.0 g'), findsOneWidget);
+    expect(find.text('Fat: 20.0 g'), findsOneWidget);
+    expect(find.text('Carbs: 60.0 g'), findsOneWidget);
+    expect(find.text('Calories: 580.0 kcal'), findsOneWidget);
+  });
+  testWidgets('reset auto calc clears locks and recalculates calories', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.enterText(fields.at(1), '400');
+    await tester.enterText(fields.at(3), '40');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('reset-auto-calc')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('reset-auto-calc')));
+    await tester.tap(find.byKey(const Key('reset-auto-calc')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('reset-auto-calc')), findsNothing);
+    expect(find.byKey(const Key('meal-lock-calories')), findsNothing);
+    expect(find.byKey(const Key('meal-lock-protein')), findsNothing);
+    expect(find.byKey(const Key('meal-form-message')), findsNothing);
+    expect(find.text('370.0'), findsOneWidget);
+  });
+  testWidgets('conflicting locked nutrition values show form error', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Conflict Meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.enterText(fields.at(3), '40');
+    await tester.enterText(fields.at(4), '20');
+    await tester.enterText(fields.at(5), '50');
+    await tester.enterText(fields.at(1), '400');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'All macros are manually locked. Unlock one macro or reset auto-calc to continue.',
+      ),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Keep calories fixed?'), findsNothing);
+    expect(find.text('Conflict Meal'), findsWidgets);
+  });
   testWidgets('manual meal sheet shows redesigned meal type cards', (
     tester,
   ) async {
