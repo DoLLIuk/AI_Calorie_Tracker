@@ -26,6 +26,7 @@
   - Take photo
   - Choose from gallery
   - Add manually
+- `_AppShell` still owns tab selection and navigation, while the profile/settings screen implementations live under `lib/profile/`
 
 ### Domains and modules
 - `lib/meal_type.dart`:
@@ -42,8 +43,12 @@
   - controller state machine
   - picker abstraction
   - repository interface
+- `lib/profile/*`:
+  - `ProfilePage` and `AccountSettingsPage`
+  - shared profile label helpers used by both screens
 - Manual meal add/edit nutrition sync:
-  - currently implemented locally in `lib/main.dart`
+  - meal sheet UI and save flow still live in `lib/main.dart`
+  - draft calculation and lock/conflict logic live in `lib/meal_edit_draft.dart` as a `part` of `main.dart`
   - `_MealFormDraft` is the state/calculation helper for realtime manual meal editing
   - see `docs/MEAL_EDIT_AUTO_CALC.md` for the exact product rules and edge cases
 - `lib/onboarding.dart`:

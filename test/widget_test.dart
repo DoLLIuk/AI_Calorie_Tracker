@@ -381,6 +381,61 @@ void main() {
     expect(find.text('Weight must be between 30 and 250 kg.'), findsOneWidget);
   });
 
+  testWidgets('profile tab renders expected summary UI', (tester) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Male Profile'), findsOneWidget);
+    expect(find.text('Weekly Consistency'), findsOneWidget);
+    expect(find.text('Daily Targets'), findsOneWidget);
+    expect(find.text('App Preferences'), findsOneWidget);
+  });
+
+  testWidgets('profile preferences opens account screen sections', (
+    tester,
+  ) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(
+        controller: controller,
+        skipOnboarding: true,
+        onboardingResult: _testOnboardingResult(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('App Preferences'));
+    await tester.tap(find.text('App Preferences'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('PREFERENCES'), findsOneWidget);
+    expect(find.text('SECURITY'), findsOneWidget);
+    expect(find.text('SUPPORT'), findsOneWidget);
+    expect(find.text('Premium member since 2025'), findsOneWidget);
+  });
+
   testWidgets(
     'home hides latest card and shows compact history state on empty day',
     (tester) async {

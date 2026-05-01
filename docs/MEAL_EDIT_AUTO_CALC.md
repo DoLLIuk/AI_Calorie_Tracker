@@ -9,7 +9,7 @@ The goal is to help future developers or AI agents change the feature safely wit
 Important:
 - This logic is frontend-only and runs on the device.
 - Backend is not involved in manual meal add/edit recalculation.
-- Current implementation lives in `lib/main.dart` inside the manual meal bottom sheet flow and `_MealFormDraft`.
+- Current implementation lives in `lib/meal_edit_draft.dart` for the draft math/locking rules and in the manual meal bottom sheet flow inside `lib/main.dart`.
 - Existing meal consistency scan uses a `15%` tolerance for calorie-vs-macro mismatch, so small historical rounding differences do not trigger `Reset auto-calc`.
 
 ## Core Rules
@@ -214,12 +214,16 @@ Current implementation is acceptable for the present app size because:
 - behavior is heavily covered by widget tests
 - product rules changed rapidly during implementation
 
-Recommended future extraction point:
-- move `_MealEditField`
-- move `_MealLockedCaloriesAutoAdjustProposal`
-- move `_MealFormDraft`
+Current extracted logic:
+- `_MealEditField`
+- `_MealLockedCaloriesAutoAdjustProposal`
+- `_MealFormDraft`
+- `_mealCaloriesFromMacros`
 
-Suggested destination:
+Current location:
+- `lib/meal_edit_draft.dart` as a `part` of `lib/main.dart`
+
+Suggested future modularization target:
 - `lib/meal_edit/meal_form_draft.dart`
 - or a small `lib/meal_edit/` folder if the screen continues growing
 

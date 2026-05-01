@@ -26,7 +26,9 @@ Flutter calorie tracking app with onboarding-based nutrition targets, AI photo a
   - `shared_preferences` (local persistence)
 
 ## Project structure
-- `lib/main.dart` - app bootstrap, shell, home/profile UI, meal CRUD, persistence orchestration
+- `lib/main.dart` - app bootstrap, shell, home/meal UI, persistence orchestration, and manual meal sheet flow
+- `lib/meal_edit_draft.dart` - extracted meal edit draft math and lock/conflict logic as a `part` of `main.dart`
+- `lib/profile/` - profile tab, account settings screens, and shared profile labels
 - `lib/onboarding.dart` - onboarding state, UI steps, nutrition calculations
 - `lib/meal_type.dart` - meal type enum + labels/icons + boundary classification
 - `lib/meal_session.dart` - session grouping, auto classification, tier logic, override resolution
