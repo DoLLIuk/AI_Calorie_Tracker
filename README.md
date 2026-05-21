@@ -65,6 +65,22 @@ The manual meal form supports linked calories/macros behavior, session-scoped fi
       Users start by choosing a goal and building a nutrition plan around it.
     </td>
     <td align="center" width="33%">
+      <img src="docs/images/readme/onboarding-users-stats.jpg" alt="Basic profile onboarding step" width="240" />
+      <br />
+      <strong>Detailed profile inputs</strong>
+      <br />
+      Age, height, weight, and unit preferences are captured before plan calculation.
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/onboarding-activity-level.jpg" alt="Activity level onboarding step" width="240" />
+      <br />
+      <strong>Activity-based planning</strong>
+      <br />
+      Daily targets adapt to the user's typical activity level and training rhythm.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
       <img src="docs/images/readme/home-dashboard.jpg" alt="Home dashboard with tracked calories and macros" width="240" />
       <br />
       <strong>Daily progress dashboard</strong>
@@ -78,8 +94,6 @@ The manual meal form supports linked calories/macros behavior, session-scoped fi
       <br />
       Meals can start from a photo, the gallery, or a full manual form.
     </td>
-  </tr>
-  <tr>
     <td align="center" width="33%">
       <img src="docs/images/readme/clarification-hints.jpg" alt="Clarification hints for ambiguous dishes" width="240" />
       <br />
@@ -87,6 +101,8 @@ The manual meal form supports linked calories/macros behavior, session-scoped fi
       <br />
       Ambiguous dishes get a fast hint-based UX instead of forcing a blind estimate.
     </td>
+  </tr>
+  <tr>
     <td align="center" width="33%">
       <img src="docs/images/readme/portion-confirmation.jpg" alt="Portion confirmation with AI estimate" width="240" />
       <br />
@@ -101,28 +117,12 @@ The manual meal form supports linked calories/macros behavior, session-scoped fi
       <br />
       Users can review and refine calories, macros, weight, and meal type before saving.
     </td>
-  </tr>
-  <tr>
     <td align="center" width="33%">
       <img src="docs/images/readme/session-history.jpg" alt="Session-based meal history grouped by meal type" width="240" />
       <br />
       <strong>Session-based history</strong>
       <br />
       Saved meals are grouped into breakfast, lunch, dinner, and snacks instead of a flat feed.
-    </td>
-    <td align="center" width="33%">
-      <img src="docs/images/readme/onboarding-users-stats.jpg" alt="Basic profile onboarding step" width="240" />
-      <br />
-      <strong>Detailed profile inputs</strong>
-      <br />
-      Age, height, weight, and unit preferences are captured before plan calculation.
-    </td>
-    <td align="center" width="33%">
-      <img src="docs/images/readme/onboarding-activity-level.jpg" alt="Activity level onboarding step" width="240" />
-      <br />
-      <strong>Activity-based planning</strong>
-      <br />
-      Daily targets adapt to the user's typical activity level and training rhythm.
     </td>
   </tr>
 </table>
@@ -250,6 +250,10 @@ The current test coverage focuses on:
 - Improve production configuration and environment strategy.
 - Expand test coverage around persistence and profile behavior.
 - Continue separating product-facing and engineering-facing documentation.
+
+## License
+
+This repository is source-available under [PolyForm Noncommercial 1.0.0](LICENSE). Commercial use is not permitted under this license without separate permission from the repository owner.
 
 ## My Role
 
