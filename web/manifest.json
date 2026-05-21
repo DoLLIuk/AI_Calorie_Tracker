@@ -1,11 +1,11 @@
 {
-    "name": "my_new_app",
-    "short_name": "my_new_app",
+    "name": "AI Calorie Tracker",
+    "short_name": "AI Tracker",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Flutter nutrition tracker with AI-powered photo meal logging, calorie goals, and session-based meal history.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

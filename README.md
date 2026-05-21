@@ -1,48 +1,119 @@
-# my_new_app
+# AI Calorie Tracker
 
-A Flutter nutrition-tracking app built around one practical user experience: turn meal logging into a fast daily habit with onboarding-based nutrition targets, photo-assisted food entry, and session-aware history instead of a flat calorie list.
+AI Calorie Tracker is a Flutter nutrition-tracking app focused on fast meal logging, AI-assisted food analysis, and daily progress that feels structured instead of noisy.
 
-For the engineering and AI-agent reference, see [docs/agent_guide.md](docs/agent_guide.md).
+## At a Glance
 
-## Why This Project Exists
+- Flutter mobile app for nutrition tracking
+- AI-powered photo meal logging
+- Personalized calorie and macro targets
+- Session-based meal history instead of a flat log
 
-Most calorie trackers make users do too much manual work before they get useful feedback. This project explores a tighter product loop:
-
-- set a personalized calorie and macro target through onboarding
-- log meals from a photo or a manual form
-- resolve ambiguity only when needed
-- show daily progress in a way that feels structured, not noisy
-
-The product direction here is not “generic food diary.” It is a mobile nutrition experience that tries to reduce friction at the moment a user decides to log food.
-
-## What It Does
+## Core Features
 
 - Personalized onboarding that calculates calorie and macro targets.
-- Home dashboard with calorie progress, macro progress, coach-style guidance, and latest meal summary.
 - Photo-based meal logging from camera or gallery.
 - Clarification flow for ambiguous dishes before final analysis.
 - Portion confirmation flow when the backend needs user input or an AI-estimate confirmation.
+- Home dashboard with calorie progress, macro progress, coach-style guidance, and latest meal summary.
 - Manual meal add/edit flow with realtime nutrition recalculation.
 - Session-based history grouped into breakfast, lunch, dinner, and snacks.
 - Local persistence for onboarding and meal data with `SharedPreferences`.
 
+## Why This Project Is Technically Interesting
+
+- AI uncertainty is handled as product UX, not just an API call.
+- Session-based meal history adds structure beyond a flat calorie log.
+- Manual meal editing includes linked nutrition logic and conflict handling.
+- Critical product flows are covered by focused tests.
+
 ## Product Highlights
 
-### Photo logging with practical ambiguity handling
+### Photo logging that handles ambiguity well
 
-The photo flow is not just “upload image -> show result.” The client supports a second clarification step for mixed or unclear dishes, then handles backend-driven portion confirmation when the estimate is uncertain.
+The photo flow is not just "upload image -> show result." The client supports a second clarification step for mixed or unclear dishes, then handles backend-driven portion confirmation when the estimate is uncertain.
 
-That matters because it turns AI food recognition into a usable product flow instead of a single optimistic API call.
+That turns AI food recognition into a usable product flow instead of a single optimistic API call.
 
-### Session-based meal history
+### Session-aware history instead of a noisy feed
 
-Meals are grouped into sessions using time proximity and classified into meal categories with threshold-aware tiering. This gives the user a more interpretable day view than a raw chronological feed.
+Meals are grouped into sessions using time proximity and classified into meal categories with threshold-aware tiering. The result is a day view that feels easier to interpret than a raw chronological list of entries.
 
-### Manual editing with structured nutrition logic
+### Manual editing with real product logic
 
-The manual meal form supports linked calories/macros behavior, session-scoped field locking, reset/restore flows, and conflict handling when user-entered values do not reconcile cleanly.
+The manual meal form supports linked calories/macros behavior, session-scoped field locking, reset and restore flows, and conflict handling when user-entered values do not reconcile cleanly.
 
-This is one of the most product-specific parts of the app and is covered by dedicated tests and documentation.
+## Product Flow
+
+<p align="center">
+  <img src="docs/images/readme/ai-calorie-tracker-flow.gif" alt="AI Calorie Tracker product flow demo" width="320" />
+</p>
+
+<p align="center">
+  A quick walkthrough of onboarding, meal entry, AI clarification, portion confirmation, and session-based history.
+</p>
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/onboarding-goal-alt.jpg" alt="Onboarding goal selection" width="240" />
+      <br />
+      <strong>Personalized onboarding</strong>
+      <br />
+      Users start by choosing a goal and building a nutrition plan around it.
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/home-dashboard.jpg" alt="Home dashboard with tracked calories and macros" width="240" />
+      <br />
+      <strong>Daily progress dashboard</strong>
+      <br />
+      The home screen surfaces calories, macros, and coach-style guidance at a glance.
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/add-meal-actions.jpg" alt="Add meal action sheet" width="240" />
+      <br />
+      <strong>Flexible meal entry</strong>
+      <br />
+      Meals can start from a photo, the gallery, or a full manual form.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/clarification-hints.jpg" alt="Clarification hints for ambiguous dishes" width="240" />
+      <br />
+      <strong>AI clarification step</strong>
+      <br />
+      Ambiguous dishes get a fast hint-based UX instead of forcing a blind estimate.
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/portion-confirmation.jpg" alt="Portion confirmation with AI estimate" width="240" />
+      <br />
+      <strong>Portion confirmation</strong>
+      <br />
+      The app can ask for a precise serving size or let the user keep the AI estimate.
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/manual-edit.jpg" alt="Manual meal editing screen" width="240" />
+      <br />
+      <strong>Editable final meal data</strong>
+      <br />
+      Users can review and refine calories, macros, weight, and meal type before saving.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/session-history.jpg" alt="Session-based meal history grouped by meal type" width="240" />
+      <br />
+      <strong>Session-based history</strong>
+      <br />
+      Saved meals are grouped into breakfast, lunch, dinner, and snacks instead of a flat feed.
+    </td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
 
 ## Architecture Overview
 
@@ -64,6 +135,8 @@ Core frontend flow:
 Photo flow:
 
 `Camera/Gallery -> clarification (optional) -> backend analysis -> portion confirmation (optional) -> save meal -> refresh dashboard/history`
+
+For the deeper engineering and AI-agent reference, see [docs/agent_guide.md](docs/agent_guide.md).
 
 ## Tech Stack
 
@@ -159,22 +232,6 @@ The current test coverage focuses on:
 - Deployment is currently a manual Flutter build flow with no CI/CD pipeline in this repo.
 - Some profile surfaces are presentational rather than fully backed by real historical analytics.
 
-## Why This Repo Is Worth Reviewing
-
-This project is strongest as an example of product-minded frontend engineering:
-
-- translating uncertain AI/backend behavior into a usable client flow
-- building non-trivial stateful UX in Flutter
-- encoding real product rules in testable local logic
-- balancing quick iteration with enough structure to keep features evolving
-
-It is especially relevant for roles involving:
-
-- Flutter or mobile product development
-- frontend architecture for stateful UX
-- AI-assisted consumer product interfaces
-- early-stage MVP building with strong product/engineering overlap
-
 ## Next Improvements
 
 - Extract more home/add/edit logic out of `lib/main.dart`.
@@ -184,4 +241,4 @@ It is especially relevant for roles involving:
 
 ## My Role
 
-I built the project independently, including the Flutter client architecture, onboarding flow, photo-based meal logging UX, manual meal editing behavior, local persistence model, session-based history logic, backend API integration, and the test coverage around the most product-critical flows.
+I built the project independently, including the Flutter client architecture, onboarding flow, AI-assisted meal logging UX, manual meal editing behavior, local persistence model, session-based history logic, backend API integration, and test coverage around the most product-critical flows.

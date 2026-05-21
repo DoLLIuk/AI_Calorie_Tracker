@@ -60,7 +60,7 @@ class ProfilePage extends StatelessWidget {
               children: [
                 const Expanded(
                   child: Text(
-                    'Lumina Health',
+                    'AI Calorie Tracker',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,

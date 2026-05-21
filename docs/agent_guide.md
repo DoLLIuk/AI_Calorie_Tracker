@@ -1,6 +1,6 @@
-# Agent Guide
+# AI Calorie Tracker Agent Guide
 
-This document is the canonical engineering and AI-agent reference for `my_new_app`.
+This document is the canonical engineering and AI-agent reference for the AI Calorie Tracker repository. In this iteration, the Dart and Flutter package name remains `my_new_app`.
 
 Read this first if you need to understand:
 
@@ -343,6 +343,8 @@ It sends:
 The linked backend repo path provided for this project is:
 
 - `C:\Users\golov\rofl_codex\backend_for_diet_app`
+
+This path is a local development reference for AI-agent workflows in the author's environment. It is not a public service endpoint, deployment identifier, or runtime config value for the client.
 
 That backend README is useful for contract context, but the frontend must still stay honest to what its own code actually sends and consumes.
 
