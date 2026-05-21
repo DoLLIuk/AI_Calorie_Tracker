@@ -110,8 +110,20 @@ The manual meal form supports linked calories/macros behavior, session-scoped fi
       <br />
       Saved meals are grouped into breakfast, lunch, dinner, and snacks instead of a flat feed.
     </td>
-    <td></td>
-    <td></td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/onboarding-users-stats.jpg" alt="Basic profile onboarding step" width="240" />
+      <br />
+      <strong>Detailed profile inputs</strong>
+      <br />
+      Age, height, weight, and unit preferences are captured before plan calculation.
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/readme/onboarding-activity-level.jpg" alt="Activity level onboarding step" width="240" />
+      <br />
+      <strong>Activity-based planning</strong>
+      <br />
+      Daily targets adapt to the user's typical activity level and training rhythm.
+    </td>
   </tr>
 </table>
 
