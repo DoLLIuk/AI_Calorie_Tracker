@@ -1,0 +1,39 @@
+# Documentation Map
+
+This folder is the working memory for AI Calorie Tracker.
+
+Use this map before changing product scope, architecture, AI behavior, or launch strategy.
+
+## Canonical Docs
+
+- [agent_guide.md](agent_guide.md): engineering source of truth for future contributors and AI agents.
+- [MVP_PRD.md](MVP_PRD.md): current `Beta v1` product scope and success criteria.
+- [FUTURE_PRODUCT_GOALS.md](FUTURE_PRODUCT_GOALS.md): post-v1 roadmap, launch, monetization, integrations, and sponsor timing.
+- [AI_NUTRITION_COACH.md](AI_NUTRITION_COACH.md): future personalized AI nutrition coach spec. Not MVP scope.
+- [PROJECT_WORK_BACKLOG.md](PROJECT_WORK_BACKLOG.md): practical gaps to close before larger feature implementation.
+- [MEAL_EDIT_AUTO_CALC.md](MEAL_EDIT_AUTO_CALC.md): detailed manual meal editing rules.
+
+## How To Read
+
+For implementation work:
+
+1. Start with [agent_guide.md](agent_guide.md).
+2. If the work changes product scope, check [MVP_PRD.md](MVP_PRD.md).
+3. If the work is future-facing, check [FUTURE_PRODUCT_GOALS.md](FUTURE_PRODUCT_GOALS.md).
+4. If the work touches AI coach behavior, check [AI_NUTRITION_COACH.md](AI_NUTRITION_COACH.md).
+5. If the work is about project readiness or cleanup, check [PROJECT_WORK_BACKLOG.md](PROJECT_WORK_BACKLOG.md).
+6. If the work touches manual meal editing, check [MEAL_EDIT_AUTO_CALC.md](MEAL_EDIT_AUTO_CALC.md).
+
+## Current Product Boundary
+
+Near-term target: `Beta v1`.
+
+Current product is a nutrition-first food logger:
+
+`onboarding -> meal logging -> daily calories/macros -> session history -> return habit`
+
+Future features such as `Today + Ask` AI coach, health integrations, subscriptions, push scheduling, accounts, and sync should not be treated as implemented behavior.
+
+## Public Planning Notes
+
+The `planning/` folder contains public-facing planning notes in Russian and English. Those files are useful for launch and strategy, but `docs/` remains the canonical technical/product working memory.

@@ -36,10 +36,45 @@ What it is not optimized for:
 - secure secret management on-device
 - complex backend-driven state
 - a fully modular frontend architecture yet
+- a full AI nutrition coach or general health assistant yet
+- first-party workout, sleep, or wearable tracking
 
-## 2. End-to-End Flows
+## 2. Product Direction And Documentation Map
 
-### 2.1 App startup
+The current product strategy is intentionally narrow:
+
+`fast meal logging -> clear daily calories/macros -> return habit`
+
+The near-term release target is `Beta v1`, not a fully monetized public product. `Beta v1` should prove that users can complete onboarding, log meals, understand the day summary, and return later.
+
+Important product boundaries:
+
+- The current app is a nutrition-first food logger.
+- The current Home coach card is heuristic guidance, not an LLM coach.
+- A future personalized AI nutrition coach is a post-v1 differentiator, not MVP.
+- External activity data may later improve nutrition advice, but the app should not become a broad fitness tracker.
+- Monetization, paywalls, subscriptions, push scheduling, accounts, and cloud sync are future work until the core loop has real user evidence.
+
+Documentation roles:
+
+- `README.md`: public-facing project presentation. Edit carefully.
+- `docs/README.md`: documentation map and reading order.
+- `docs/agent_guide.md`: current engineering source of truth for agents.
+- `docs/MVP_PRD.md`: `Beta v1` scope, success criteria, and out-of-scope boundaries.
+- `docs/FUTURE_PRODUCT_GOALS.md`: post-v1 roadmap and strategy.
+- `docs/AI_NUTRITION_COACH.md`: future AI nutrition coach specification.
+- `planning/`: public planning notes and launch strategy, less implementation-specific than `docs/`.
+
+When docs conflict, prefer this order:
+
+1. current code and tests for runtime behavior
+2. `docs/agent_guide.md` for engineering context
+3. `docs/MVP_PRD.md` for near-term product scope
+4. `docs/FUTURE_PRODUCT_GOALS.md` and `docs/AI_NUTRITION_COACH.md` for post-v1 direction
+
+## 3. End-to-End Flows
+
+### 3.1 App startup
 
 Main path:
 
@@ -56,7 +91,7 @@ Important details:
 - If onboarding is complete, the app opens the shell.
 - Otherwise it opens `OnboardingFlow`.
 
-### 2.2 Onboarding flow
+### 3.2 Onboarding flow
 
 Path:
 
@@ -81,7 +116,7 @@ Core file:
 
 - `lib/onboarding.dart`
 
-### 2.3 Photo meal flow
+### 3.3 Photo meal flow
 
 Path:
 
@@ -109,7 +144,7 @@ Relevant files:
 - `lib/photo_food/models.dart`
 - photo-flow UI inside `lib/main.dart`
 
-### 2.4 Manual meal flow
+### 3.4 Manual meal flow
 
 Path:
 
@@ -133,7 +168,7 @@ That document is the product-rule reference for:
 - reset and restore actions
 - locked-calories conflict confirmation
 
-### 2.5 Home screen rendering
+### 3.5 Home screen rendering
 
 Path:
 
@@ -149,7 +184,7 @@ The home screen shows:
 
 Most of the orchestration still lives in `lib/main.dart`.
 
-## 3. Module Responsibilities
+## 4. Module Responsibilities
 
 ### `lib/main.dart`
 
@@ -242,6 +277,12 @@ Owns:
 
 This is pure product behavior, not backend logic.
 
+Current boundary:
+
+- It can use meal totals, targets, selected date, yesterday protein, and time-of-day context.
+- It must not be described as a real personalized AI nutrition coach.
+- If this evolves toward AI, first define data contracts and safety rules in `docs/AI_NUTRITION_COACH.md`.
+
 ### `lib/photo_food/`
 
 Purpose: isolate backend integration and response parsing.
@@ -276,14 +317,18 @@ Important caveat:
 
 Do not describe those as real backend-driven analytics in public docs.
 
-## 4. Important Files And Directories
+## 5. Important Files And Directories
 
 Use this as the fastest repo map.
 
 - `README.md`: public-facing project overview
+- `docs/README.md`: documentation map
 - `docs/agent_guide.md`: canonical engineering reference
+- `docs/MVP_PRD.md`: current `Beta v1` product scope
+- `docs/FUTURE_PRODUCT_GOALS.md`: post-v1 roadmap and monetization/integration direction
+- `docs/AI_NUTRITION_COACH.md`: future personalized AI nutrition coach spec
 - `docs/MEAL_EDIT_AUTO_CALC.md`: manual meal editing rules
-- `docs/MVP Product Requirements Document.md`: historical product context, not the runtime source of truth
+- `planning/`: launch and strategy planning files
 - `lib/main.dart`: highest-leverage and highest-risk frontend file
 - `lib/onboarding.dart`: onboarding and plan calculation
 - `lib/meal_session.dart`: session logic
@@ -296,7 +341,7 @@ Use this as the fastest repo map.
 - `test/photo_food_parsing_test.dart`: API parsing assumptions
 - `test/api_error_and_validation_test.dart`: error parsing and validation expectations
 
-## 5. Configuration Model
+## 6. Configuration Model
 
 ### Runtime configuration
 
@@ -348,9 +393,9 @@ This path is a local development reference for AI-agent workflows in the author'
 
 That backend README is useful for contract context, but the frontend must still stay honest to what its own code actually sends and consumes.
 
-## 6. Architectural Decisions And Tradeoffs
+## 7. Architectural Decisions And Tradeoffs
 
-### 6.1 Client-side sessionization instead of backend-driven grouping
+### 7.1 Client-side sessionization instead of backend-driven grouping
 
 Why:
 
@@ -363,7 +408,7 @@ Tradeoff:
 - grouping behavior must stay consistent everywhere meals are mutated
 - changing session rules may require migration care for persisted meals
 
-### 6.2 Separate photo analysis from local meal management
+### 7.2 Separate photo analysis from local meal management
 
 Why:
 
@@ -375,7 +420,7 @@ Tradeoff:
 - the app depends on a strict API contract
 - photo features cannot work without a compatible backend
 
-### 6.3 Compile-time API config
+### 7.3 Compile-time API config
 
 Why:
 
@@ -388,7 +433,7 @@ Tradeoff:
 - keys passed through `--dart-define` are part of the app build process
 - acceptable for current development flow, but not a hardened production approach
 
-### 6.4 Monolithic home/add/edit orchestration in `main.dart`
+### 7.4 Monolithic home/add/edit orchestration in `main.dart`
 
 Why:
 
@@ -401,7 +446,20 @@ Tradeoff:
 - more accidental coupling between unrelated UI behaviors
 - larger blast radius for edits
 
-## 7. Known Limitations
+### 7.5 Nutrition-first scope
+
+Why:
+
+- the strongest current product loop is food logging and day-level nutrition feedback
+- going broad into workouts, sleep, hydration, and general wellness would dilute the product
+- external activity data is useful only when it improves nutrition advice
+
+Tradeoff:
+
+- integrations must be designed as context providers, not as new first-party product categories
+- AI coach work must stay constrained to nutrition decisions unless the product strategy changes explicitly
+
+## 8. Known Limitations
 
 - `lib/main.dart` is still too large and mixes app shell, persistence, home logic, and add/edit flow logic.
 - Photo logging requires the separate backend; there is no offline fallback.
@@ -410,8 +468,10 @@ Tradeoff:
 - There is no authentication, account sync, or remote user profile model in this repo.
 - Some profile surfaces are presentational rather than fully backed by real historical analytics.
 - Build/deploy flow is manual; no CI/CD is defined here.
+- There is no production analytics SDK yet, only debug-style event hooks in some areas.
+- There is no AI nutrition coach, Ask Coach, health integration, or activity-calorie import yet.
 
-## 8. Common Pitfalls
+## 9. Common Pitfalls
 
 ### Pitfall: changing meal classification in one place only
 
@@ -459,7 +519,20 @@ If you skip this, the UI can show stale grouping or wrong category/tier metadata
 
 The parsing models already tolerate some optional backend fields. Keep that flexibility unless the contract is explicitly tightened.
 
-## 9. Safe Ways To Modify The Project
+### Pitfall: turning future strategy into current UI copy
+
+Do not advertise future features as implemented:
+
+- AI nutrition coach
+- Ask Coach
+- Apple Health / Health Connect / Fitbit integration
+- subscriptions or premium limits
+- cloud sync
+- real weekly analytics
+
+If a feature is only in `docs/FUTURE_PRODUCT_GOALS.md`, `docs/AI_NUTRITION_COACH.md`, or `planning/`, label it as future work.
+
+## 10. Safe Ways To Modify The Project
 
 ### Safe change: API error copy
 
@@ -504,6 +577,10 @@ Risk:
 
 - moderate product-risk, low architectural risk
 
+Guardrail:
+
+- keep it heuristic and nutrition-first unless a separate AI-coach implementation task is explicitly scoped
+
 ### Safe change: backend request/response contract
 
 Change:
@@ -531,7 +608,7 @@ Change here only after you identify whether the logic belongs to:
 
 When possible, extract targeted logic instead of adding more cross-cutting code.
 
-## 10. Extension Points
+## 11. Extension Points
 
 Good next refactor targets:
 
@@ -547,8 +624,13 @@ Good product extensions that fit the current architecture:
 - more robust local storage than `SharedPreferences`
 - richer profile analytics backed by actual meal history
 - clearer separation between AI-estimated and manually-entered meal provenance in the UI
+- analytics events needed for beta learning
+- health/activity integrations as optional context for nutrition advice
+- future AI nutrition coach surfaces: `Today` cards and `Ask`
 
-## 11. Testing And Verification
+AI nutrition coach foundation work should start with data quality, event tracking, and explicit permissions, not with a chat UI first. See `docs/AI_NUTRITION_COACH.md`.
+
+## 12. Testing And Verification
 
 Primary command:
 
@@ -574,7 +656,16 @@ When changing code, verify at least:
 5. manual meal add/edit with locks and reset
 6. category/session rendering on the home screen
 
-## 12. Fast Navigation Recipes For AI Agents
+For future analytics, integrations, monetization, or AI coach work, also verify:
+
+1. feature-disabled state
+2. permissions denied state
+3. no-data state
+4. stale-data state
+5. user correction or dismissal path
+6. no medical or overconfident AI copy
+
+## 13. Fast Navigation Recipes For AI Agents
 
 If the task is about:
 
@@ -585,3 +676,6 @@ If the task is about:
 - home aggregation or persistence side effects: start in `lib/main.dart`
 - coach messaging: start in `lib/home_coach.dart`
 - profile/settings UI: start in `lib/profile/`
+- MVP scope questions: start in `docs/MVP_PRD.md`
+- future AI nutrition coach questions: start in `docs/AI_NUTRITION_COACH.md`
+- post-v1 roadmap or monetization questions: start in `docs/FUTURE_PRODUCT_GOALS.md`
