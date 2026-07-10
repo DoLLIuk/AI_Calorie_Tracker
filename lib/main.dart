@@ -3,9 +3,12 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'analytics.dart';
 import 'app_config.dart';
+import 'firebase_analytics_adapter.dart';
 import 'home_coach.dart';
 import 'meal_session.dart';
 import 'meal_type.dart';
@@ -20,7 +23,19 @@ import 'profile/profile_page.dart';
 
 part 'meal_edit_draft.dart';
 
-void main() => runApp(MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  Analytics? analytics;
+  if (_supportsFirebaseAnalytics) {
+    await Firebase.initializeApp();
+    analytics = FirebaseAnalyticsAdapter();
+  }
+  runApp(MyApp(analytics: analytics));
+}
+
+bool get _supportsFirebaseAnalytics =>
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS;
 
 class MyApp extends StatefulWidget {
   final PhotoFoodController? controller;
@@ -30,6 +45,7 @@ class MyApp extends StatefulWidget {
   final bool skipOnboarding;
   final OnboardingResult? onboardingResult;
   final DateTime Function()? nowProvider;
+  final Analytics? analytics;
 
   const MyApp({
     super.key,
@@ -40,6 +56,7 @@ class MyApp extends StatefulWidget {
     this.skipOnboarding = false,
     this.onboardingResult,
     this.nowProvider,
+    this.analytics,
   });
 
   @override
@@ -53,6 +70,7 @@ class _MyAppState extends State<MyApp> {
 
   late final PhotoFoodController _controller;
   late final bool _ownsController;
+  late final Analytics _analytics;
   OnboardingResult? _onboardingResult;
   OnboardingDraft? _onboardingDraft;
   List<_MealEntry> _persistedMeals = const [];
@@ -63,6 +81,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _onboardingResult = widget.onboardingResult;
+    _analytics = widget.analytics ?? const DebugAnalytics();
 
     if (widget.controller != null) {
       _controller = widget.controller!;
@@ -170,12 +189,18 @@ class _MyAppState extends State<MyApp> {
     return _persistQueue;
   }
 
-  Future<void> _handleOnboardingCompleted(OnboardingResult result) async {
+  Future<void> _handleOnboardingCompleted(
+    OnboardingResult result, {
+    bool isProfileEdit = false,
+  }) async {
     setState(() {
       _onboardingResult = result;
       _onboardingDraft = null;
     });
     await _enqueuePersistState(reason: 'onboarding_completed');
+    if (!isProfileEdit) {
+      _analytics.track(AnalyticsEvent(AnalyticsEvents.onboardingCompleted));
+    }
   }
 
   Future<void> _openProfileEditor(BuildContext context) async {
@@ -191,7 +216,7 @@ class _MyAppState extends State<MyApp> {
       ),
     );
     if (!mounted || updatedResult == null) return;
-    await _handleOnboardingCompleted(updatedResult);
+    await _handleOnboardingCompleted(updatedResult, isProfileEdit: true);
   }
 
   OnboardingDraft _buildProfileEditDraft() {
@@ -242,8 +267,39 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _handleMealsChanged(List<_MealEntry> meals) {
+    final previousMeals = _persistedMeals;
+    final previousIds = previousMeals.map((meal) => meal.requestId).toSet();
+    final previousSessionIds = previousMeals
+        .map((meal) => meal.sessionId)
+        .where((sessionId) => sessionId.isNotEmpty)
+        .toSet();
+    final addedMeals = meals
+        .where((meal) => !previousIds.contains(meal.requestId))
+        .toList(growable: false);
+
     _persistedMeals = List<_MealEntry>.from(meals);
     _enqueuePersistState(reason: 'meals_changed');
+
+    for (var index = 0; index < addedMeals.length; index++) {
+      final meal = addedMeals[index];
+      final now = widget.nowProvider?.call() ?? DateTime.now();
+      final dayOffset = _dateOnly(meal.day).difference(_dateOnly(now)).inDays;
+      _analytics.track(
+        AnalyticsEvent(
+          AnalyticsEvents.mealLogged,
+          properties: {
+            'source': meal.origin.name,
+            'day_offset': dayOffset,
+            'creates_new_session':
+                previousMeals.isEmpty ||
+                !previousSessionIds.contains(meal.sessionId),
+          },
+        ),
+      );
+      if (previousMeals.isEmpty && index == 0) {
+        _analytics.track(AnalyticsEvent(AnalyticsEvents.firstMealLogged));
+      }
+    }
   }
 
   void _resetOnboardingForTesting() {
@@ -280,6 +336,7 @@ class _MyAppState extends State<MyApp> {
               onboardingResult: _onboardingResult,
               initialMeals: _persistedMeals,
               onMealsChanged: _handleMealsChanged,
+              analytics: _analytics,
               onResetOnboarding: _resetOnboardingForTesting,
               onEditProfile: _openProfileEditor,
               nowProvider: widget.nowProvider,
@@ -313,6 +370,7 @@ class _AppShell extends StatefulWidget {
   final VoidCallback onResetOnboarding;
   final Future<void> Function(BuildContext context) onEditProfile;
   final DateTime Function()? nowProvider;
+  final Analytics analytics;
 
   const _AppShell({
     required this.controller,
@@ -321,6 +379,7 @@ class _AppShell extends StatefulWidget {
     required this.onMealsChanged,
     required this.onResetOnboarding,
     required this.onEditProfile,
+    required this.analytics,
     this.nowProvider,
   });
 
@@ -346,6 +405,7 @@ class _AppShellState extends State<_AppShell> {
             initialMeals: widget.initialMeals,
             onMealsChanged: widget.onMealsChanged,
             nowProvider: widget.nowProvider,
+            analytics: widget.analytics,
           ),
           ProfilePage(
             onboardingResult: widget.onboardingResult,
@@ -401,6 +461,7 @@ class _CaloriesHomePage extends StatefulWidget {
   final List<_MealEntry> initialMeals;
   final ValueChanged<List<_MealEntry>> onMealsChanged;
   final DateTime Function()? nowProvider;
+  final Analytics analytics;
 
   const _CaloriesHomePage({
     super.key,
@@ -409,6 +470,7 @@ class _CaloriesHomePage extends StatefulWidget {
     this.initialMeals = const [],
     required this.onMealsChanged,
     this.nowProvider,
+    required this.analytics,
   });
 
   @override
@@ -596,7 +658,21 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
-        SnackBar(content: Text(mapErrorCodeToMessage(error.code))),
+        SnackBar(
+          content: Text(mapErrorCodeToMessage(error.code)),
+          action: SnackBarAction(
+            label: 'Add manually',
+            onPressed: () async {
+              widget.analytics.track(
+                AnalyticsEvent(
+                  AnalyticsEvents.manualFallbackUsed,
+                  properties: {'error_code': error.code},
+                ),
+              );
+              await _showManualMealSheet();
+            },
+          ),
+        ),
       );
   }
 
@@ -669,6 +745,30 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
 
     await widget.controller.analyzePickedImage(clarification: clarification);
     if (!mounted) return;
+    final photoState = widget.controller.state;
+    final sourceName = source.name;
+    if (photoState.status == HomeStatus.error) {
+      widget.analytics.track(
+        AnalyticsEvent(
+          AnalyticsEvents.photoAnalysisFailed,
+          properties: {
+            'source': sourceName,
+            'error_code': photoState.error?.code ?? 'INTERNAL_ERROR',
+          },
+        ),
+      );
+    } else {
+      widget.analytics.track(
+        AnalyticsEvent(
+          AnalyticsEvents.photoAnalysisSucceeded,
+          properties: {
+            'source': sourceName,
+            'requires_portion_confirmation':
+                photoState.status == HomeStatus.awaitingPortion,
+          },
+        ),
+      );
+    }
     await _handlePhotoFlowContinuation();
   }
 
@@ -982,6 +1082,14 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
         _rebuildSessionsForDay(meal.day, notify: false);
       });
       _notifyMealsChanged();
+      if (editingMeal != null) {
+        widget.analytics.track(
+          AnalyticsEvent(
+            AnalyticsEvents.mealEdited,
+            properties: {'source': editingMeal.origin.name},
+          ),
+        );
+      }
       Navigator.of(context).pop();
     }
 
@@ -1006,444 +1114,524 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
               return Material(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(26),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                child: SizedBox(
+                  height: min(
+                    media.size.height * 0.9,
+                    media.size.height - bottomInset - 8,
+                  ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            editingMeal == null ? 'Add Meal' : 'Edit Meal',
-                            style: const TextStyle(
-                              fontSize: 34 / 1.5,
-                              fontWeight: FontWeight.w700,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              editingMeal == null ? 'Add Meal' : 'Edit Meal',
+                              style: const TextStyle(
+                                fontSize: 34 / 1.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _sheetInput(
-                        controller: nameCtrl,
-                        label: 'Meal Name',
-                        hint: 'e.g. Caesar Salad',
-                      ),
-                      const SizedBox(height: 12),
-                      _sheetInput(
-                        controller: kcalCtrl,
-                        fieldKeySuffix: 'calories',
-                        label: 'Calories',
-                        hint: numericHint(editingMeal?.kcal, '0'),
-                        numeric: true,
-                        isLocked: formDraft.isLocked(_MealEditField.calories),
-                        onDoubleTapLock: () =>
-                            lockField(_MealEditField.calories, setSheetState),
-                        onUnlock: () =>
-                            unlockField(_MealEditField.calories, setSheetState),
-                        onChanged: (value) => handleFieldChanged(
-                          _MealEditField.calories,
-                          value,
-                          setSheetState,
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _sheetInput(
-                              controller: gramsCtrl,
-                              fieldKeySuffix: 'weight',
-                              label: 'Weight (g)',
-                              hint: numericHint(editingMeal?.portionG, '250'),
-                              numeric: true,
-                              isLocked: formDraft.isLocked(
-                                _MealEditField.weight,
-                              ),
-                              onDoubleTapLock: () => lockField(
-                                _MealEditField.weight,
-                                setSheetState,
-                              ),
-                              onUnlock: () => unlockField(
-                                _MealEditField.weight,
-                                setSheetState,
-                              ),
-                              onChanged: (value) => handleFieldChanged(
-                                _MealEditField.weight,
-                                value,
-                                setSheetState,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _sheetInput(
-                              controller: proteinCtrl,
-                              fieldKeySuffix: 'protein',
-                              label: 'Protein (g)',
-                              hint: numericHint(editingMeal?.proteinG, '20'),
-                              numeric: true,
-                              isLocked: formDraft.isLocked(
-                                _MealEditField.protein,
-                              ),
-                              onDoubleTapLock: () => lockField(
-                                _MealEditField.protein,
-                                setSheetState,
-                              ),
-                              onUnlock: () => unlockField(
-                                _MealEditField.protein,
-                                setSheetState,
-                              ),
-                              onChanged: (value) => handleFieldChanged(
-                                _MealEditField.protein,
-                                value,
-                                setSheetState,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _sheetInput(
-                              controller: fatCtrl,
-                              fieldKeySuffix: 'fat',
-                              label: 'Fat (g)',
-                              hint: numericHint(editingMeal?.fatG, '8'),
-                              numeric: true,
-                              isLocked: formDraft.isLocked(_MealEditField.fat),
-                              onDoubleTapLock: () =>
-                                  lockField(_MealEditField.fat, setSheetState),
-                              onUnlock: () => unlockField(
-                                _MealEditField.fat,
-                                setSheetState,
-                              ),
-                              onChanged: (value) => handleFieldChanged(
-                                _MealEditField.fat,
-                                value,
-                                setSheetState,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _sheetInput(
-                              controller: carbsCtrl,
-                              fieldKeySuffix: 'carbs',
-                              label: 'Carbs (g)',
-                              hint: numericHint(editingMeal?.carbsG, '30'),
-                              numeric: true,
-                              isLocked: formDraft.isLocked(
-                                _MealEditField.carbs,
-                              ),
-                              onDoubleTapLock: () => lockField(
-                                _MealEditField.carbs,
-                                setSheetState,
-                              ),
-                              onUnlock: () => unlockField(
-                                _MealEditField.carbs,
-                                setSheetState,
-                              ),
-                              onChanged: (value) => handleFieldChanged(
-                                _MealEditField.carbs,
-                                value,
-                                setSheetState,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Meal Type',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _mealTypeTile(
-                              key: const Key('meal-type-breakfast'),
-                              mealType: MealType.breakfast,
-                              selected: selectedMealType == MealType.breakfast,
-                              onTap: () => setSheetState(
-                                () => selectedMealType = MealType.breakfast,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _mealTypeTile(
-                              key: const Key('meal-type-lunch'),
-                              mealType: MealType.lunch,
-                              selected: selectedMealType == MealType.lunch,
-                              onTap: () => setSheetState(
-                                () => selectedMealType = MealType.lunch,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _mealTypeTile(
-                              key: const Key('meal-type-dinner'),
-                              mealType: MealType.dinner,
-                              selected: selectedMealType == MealType.dinner,
-                              onTap: () => setSheetState(
-                                () => selectedMealType = MealType.dinner,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _mealTypeTile(
-                              key: const Key('meal-type-snack'),
-                              mealType: MealType.snack,
-                              selected: selectedMealType == MealType.snack,
-                              onTap: () => setSheetState(
-                                () => selectedMealType = MealType.snack,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (formMessage != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          key: const Key('meal-form-message'),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7D6),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFFACC15)),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          child: Text(
-                            formMessage!,
-                            style: const TextStyle(
-                              color: Color(0xFF92400E),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (formDraft.shouldShowResetAutoCalc ||
-                          hasSessionRestoreChanges()) ...[
-                        const SizedBox(height: 12),
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                      const Divider(height: 1),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (formDraft.shouldShowResetAutoCalc)
-                                Expanded(
-                                  child: TextButton.icon(
-                                    key: const Key('reset-auto-calc'),
-                                    onPressed: () =>
-                                        resetAutoCalc(setSheetState),
-                                    icon: const Icon(
-                                      Icons.refresh_rounded,
-                                      size: 18,
-                                    ),
-                                    label: const Text(
-                                      'Reset auto‑calc',
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: const Color(0xFFB45309),
-                                      backgroundColor: const Color(0xFFFFF7D6),
-                                      minimumSize: const Size(0, 60),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
+                              _sheetInput(
+                                controller: nameCtrl,
+                                label: 'Meal Name',
+                                hint: 'e.g. Caesar Salad',
+                              ),
+                              const SizedBox(height: 12),
+                              _sheetInput(
+                                controller: kcalCtrl,
+                                fieldKeySuffix: 'calories',
+                                label: 'Calories',
+                                hint: numericHint(editingMeal?.kcal, '0'),
+                                numeric: true,
+                                isLocked: formDraft.isLocked(
+                                  _MealEditField.calories,
+                                ),
+                                onDoubleTapLock: () => lockField(
+                                  _MealEditField.calories,
+                                  setSheetState,
+                                ),
+                                onUnlock: () => unlockField(
+                                  _MealEditField.calories,
+                                  setSheetState,
+                                ),
+                                onChanged: (value) => handleFieldChanged(
+                                  _MealEditField.calories,
+                                  value,
+                                  setSheetState,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _sheetInput(
+                                      controller: gramsCtrl,
+                                      fieldKeySuffix: 'weight',
+                                      label: 'Weight (g)',
+                                      hint: numericHint(
+                                        editingMeal?.portionG,
+                                        '250',
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
+                                      numeric: true,
+                                      isLocked: formDraft.isLocked(
+                                        _MealEditField.weight,
+                                      ),
+                                      onDoubleTapLock: () => lockField(
+                                        _MealEditField.weight,
+                                        setSheetState,
+                                      ),
+                                      onUnlock: () => unlockField(
+                                        _MealEditField.weight,
+                                        setSheetState,
+                                      ),
+                                      onChanged: (value) => handleFieldChanged(
+                                        _MealEditField.weight,
+                                        value,
+                                        setSheetState,
                                       ),
                                     ),
                                   ),
-                                ),
-                              if (formDraft.shouldShowResetAutoCalc &&
-                                  hasSessionRestoreChanges())
-                                const SizedBox(width: 10),
-                              if (hasSessionRestoreChanges())
-                                Expanded(
-                                  child: TextButton.icon(
-                                    key: const Key('restore-session-start'),
-                                    onPressed: () =>
-                                        restoreSessionStart(setSheetState),
-                                    icon: const Icon(
-                                      Icons.undo_rounded,
-                                      size: 18,
-                                    ),
-                                    label: const Text(
-                                      'Restore previous values',
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: const Color(0xFF7C3AED),
-                                      backgroundColor: const Color(0xFFF5F3FF),
-                                      minimumSize: const Size(0, 60),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _sheetInput(
+                                      controller: proteinCtrl,
+                                      fieldKeySuffix: 'protein',
+                                      label: 'Protein (g)',
+                                      hint: numericHint(
+                                        editingMeal?.proteinG,
+                                        '20',
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
+                                      numeric: true,
+                                      isLocked: formDraft.isLocked(
+                                        _MealEditField.protein,
+                                      ),
+                                      onDoubleTapLock: () => lockField(
+                                        _MealEditField.protein,
+                                        setSheetState,
+                                      ),
+                                      onUnlock: () => unlockField(
+                                        _MealEditField.protein,
+                                        setSheetState,
+                                      ),
+                                      onChanged: (value) => handleFieldChanged(
+                                        _MealEditField.protein,
+                                        value,
+                                        setSheetState,
                                       ),
                                     ),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _sheetInput(
+                                      controller: fatCtrl,
+                                      fieldKeySuffix: 'fat',
+                                      label: 'Fat (g)',
+                                      hint: numericHint(editingMeal?.fatG, '8'),
+                                      numeric: true,
+                                      isLocked: formDraft.isLocked(
+                                        _MealEditField.fat,
+                                      ),
+                                      onDoubleTapLock: () => lockField(
+                                        _MealEditField.fat,
+                                        setSheetState,
+                                      ),
+                                      onUnlock: () => unlockField(
+                                        _MealEditField.fat,
+                                        setSheetState,
+                                      ),
+                                      onChanged: (value) => handleFieldChanged(
+                                        _MealEditField.fat,
+                                        value,
+                                        setSheetState,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _sheetInput(
+                                      controller: carbsCtrl,
+                                      fieldKeySuffix: 'carbs',
+                                      label: 'Carbs (g)',
+                                      hint: numericHint(
+                                        editingMeal?.carbsG,
+                                        '30',
+                                      ),
+                                      numeric: true,
+                                      isLocked: formDraft.isLocked(
+                                        _MealEditField.carbs,
+                                      ),
+                                      onDoubleTapLock: () => lockField(
+                                        _MealEditField.carbs,
+                                        setSheetState,
+                                      ),
+                                      onUnlock: () => unlockField(
+                                        _MealEditField.carbs,
+                                        setSheetState,
+                                      ),
+                                      onChanged: (value) => handleFieldChanged(
+                                        _MealEditField.carbs,
+                                        value,
+                                        setSheetState,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              const Text(
+                                'Meal Type',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                 ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _mealTypeTile(
+                                      key: const Key('meal-type-breakfast'),
+                                      mealType: MealType.breakfast,
+                                      selected:
+                                          selectedMealType ==
+                                          MealType.breakfast,
+                                      onTap: () => setSheetState(
+                                        () => selectedMealType =
+                                            MealType.breakfast,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _mealTypeTile(
+                                      key: const Key('meal-type-lunch'),
+                                      mealType: MealType.lunch,
+                                      selected:
+                                          selectedMealType == MealType.lunch,
+                                      onTap: () => setSheetState(
+                                        () => selectedMealType = MealType.lunch,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _mealTypeTile(
+                                      key: const Key('meal-type-dinner'),
+                                      mealType: MealType.dinner,
+                                      selected:
+                                          selectedMealType == MealType.dinner,
+                                      onTap: () => setSheetState(
+                                        () =>
+                                            selectedMealType = MealType.dinner,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _mealTypeTile(
+                                      key: const Key('meal-type-snack'),
+                                      mealType: MealType.snack,
+                                      selected:
+                                          selectedMealType == MealType.snack,
+                                      onTap: () => setSheetState(
+                                        () => selectedMealType = MealType.snack,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (formDraft.shouldShowResetAutoCalc ||
+                                  hasSessionRestoreChanges()) ...[
+                                const SizedBox(height: 12),
+                                IntrinsicHeight(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (formDraft.shouldShowResetAutoCalc)
+                                        Expanded(
+                                          child: TextButton.icon(
+                                            key: const Key('reset-auto-calc'),
+                                            onPressed: () =>
+                                                resetAutoCalc(setSheetState),
+                                            icon: const Icon(
+                                              Icons.refresh_rounded,
+                                              size: 18,
+                                            ),
+                                            label: const Text(
+                                              'Reset auto‑calc',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: const Color(
+                                                0xFFB45309,
+                                              ),
+                                              backgroundColor: const Color(
+                                                0xFFFFF7D6,
+                                              ),
+                                              minimumSize: const Size(0, 60),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      if (formDraft.shouldShowResetAutoCalc &&
+                                          hasSessionRestoreChanges())
+                                        const SizedBox(width: 10),
+                                      if (hasSessionRestoreChanges())
+                                        Expanded(
+                                          child: TextButton.icon(
+                                            key: const Key(
+                                              'restore-session-start',
+                                            ),
+                                            onPressed: () =>
+                                                restoreSessionStart(
+                                                  setSheetState,
+                                                ),
+                                            icon: const Icon(
+                                              Icons.undo_rounded,
+                                              size: 18,
+                                            ),
+                                            label: const Text(
+                                              'Restore previous values',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: const Color(
+                                                0xFF7C3AED,
+                                              ),
+                                              backgroundColor: const Color(
+                                                0xFFF5F3FF,
+                                              ),
+                                              minimumSize: const Size(0, 60),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 20),
                             ],
                           ),
                         ),
-                      ],
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF7E9EF1),
-                            minimumSize: const Size.fromHeight(58),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          onPressed: () async {
-                            final kcalValue = _parseNonNegative(kcalCtrl.text);
-                            final gramsValue = _parseNonNegative(
-                              gramsCtrl.text,
-                            );
-                            final proteinValue = _parseNonNegative(
-                              proteinCtrl.text,
-                            );
-                            final fatValue = _parseNonNegative(fatCtrl.text);
-                            final carbsValue = _parseNonNegative(
-                              carbsCtrl.text,
-                            );
-                            if (kcalValue == null ||
-                                gramsValue == null ||
-                                proteinValue == null ||
-                                fatValue == null ||
-                                carbsValue == null ||
-                                gramsValue <= 0) {
-                              setSheetState(
-                                () => formMessage =
-                                    'Check fields: name is required and numbers must be >= 0.',
-                              );
-                              return;
-                            }
-
-                            final autoAdjustProposal = formDraft
-                                .buildAutoAdjustedDraftRespectingAllManualMacroChanges();
-                            if (autoAdjustProposal != null) {
-                              _trackMealEditEvent(
-                                'meal_edit_locked_conflict_prompt_shown',
-                                {
-                                  'source': mealEditSource,
-                                  'locked_fields_count':
-                                      formDraft.lockedFields.length,
-                                  'manually_edited_macro_count': formDraft
-                                      .manuallyEditedMacroFields
-                                      .length,
-                                  'adjusted_fields': autoAdjustProposal
-                                      .adjustedFields
-                                      .map((field) => field.name)
-                                      .toList(growable: false),
-                                  'has_conflict':
-                                      formDraft.errorMessage != null,
-                                },
-                              );
-                              final confirmAction =
-                                  await showLockedCaloriesConfirm(
-                                    autoAdjustProposal,
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (formMessage != null) ...[
+                              Container(
+                                key: const Key('meal-form-message'),
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF7D6),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFFFACC15),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: Text(
+                                  formMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFF92400E),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            SizedBox(
+                              key: const Key('manual-meal-submit'),
+                              width: double.infinity,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF7E9EF1),
+                                  minimumSize: const Size.fromHeight(58),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  final kcalValue = _parseNonNegative(
+                                    kcalCtrl.text,
                                   );
-                              if (confirmAction == 'save_as_entered') {
-                                _trackMealEditEvent(
-                                  'meal_edit_locked_conflict_save_as_entered',
-                                  {
-                                    'source': mealEditSource,
-                                    'locked_fields_count':
-                                        formDraft.lockedFields.length,
-                                    'manually_edited_macro_count': formDraft
-                                        .manuallyEditedMacroFields
-                                        .length,
-                                    'adjusted_fields': autoAdjustProposal
-                                        .adjustedFields
-                                        .map((field) => field.name)
-                                        .toList(growable: false),
-                                    'has_conflict':
-                                        formDraft.errorMessage != null,
-                                  },
-                                );
-                              } else if (confirmAction != 'auto_adjust') {
-                                return;
-                              } else {
-                                formDraft = autoAdjustProposal.adjustedDraft;
-                                syncControllersFromDraft();
-                                _trackMealEditEvent(
-                                  'meal_edit_locked_conflict_auto_adjust_saved',
-                                  {
-                                    'source': mealEditSource,
-                                    'locked_fields_count':
-                                        formDraft.lockedFields.length,
-                                    'manually_edited_macro_count': formDraft
-                                        .manuallyEditedMacroFields
-                                        .length,
-                                    'adjusted_fields': autoAdjustProposal
-                                        .adjustedFields
-                                        .map((field) => field.name)
-                                        .toList(growable: false),
-                                    'has_conflict':
-                                        formDraft.errorMessage != null,
-                                  },
-                                );
-                                setSheetState(() {
-                                  formMessage = formDraft.inlineMessage;
-                                });
-                              }
-                            } else if (formDraft.hasCaloriesLockedConflict) {
-                              _trackMealEditEvent(
-                                'meal_edit_locked_conflict_unresolvable',
-                                {
-                                  'source': mealEditSource,
-                                  'locked_fields_count':
-                                      formDraft.lockedFields.length,
-                                  'manually_edited_macro_count': formDraft
-                                      .manuallyEditedMacroFields
-                                      .length,
-                                  'has_conflict':
-                                      formDraft.errorMessage != null,
+                                  final gramsValue = _parseNonNegative(
+                                    gramsCtrl.text,
+                                  );
+                                  final proteinValue = _parseNonNegative(
+                                    proteinCtrl.text,
+                                  );
+                                  final fatValue = _parseNonNegative(
+                                    fatCtrl.text,
+                                  );
+                                  final carbsValue = _parseNonNegative(
+                                    carbsCtrl.text,
+                                  );
+                                  if (nameCtrl.text.trim().isEmpty ||
+                                      kcalValue == null ||
+                                      gramsValue == null ||
+                                      proteinValue == null ||
+                                      fatValue == null ||
+                                      carbsValue == null ||
+                                      gramsValue <= 0) {
+                                    setSheetState(
+                                      () => formMessage =
+                                          'Check fields: name is required and numbers must be >= 0.',
+                                    );
+                                    return;
+                                  }
+
+                                  final autoAdjustProposal = formDraft
+                                      .buildAutoAdjustedDraftRespectingAllManualMacroChanges();
+                                  if (autoAdjustProposal != null) {
+                                    _trackMealEditEvent(
+                                      'meal_edit_locked_conflict_prompt_shown',
+                                      {
+                                        'source': mealEditSource,
+                                        'locked_fields_count':
+                                            formDraft.lockedFields.length,
+                                        'manually_edited_macro_count': formDraft
+                                            .manuallyEditedMacroFields
+                                            .length,
+                                        'adjusted_fields': autoAdjustProposal
+                                            .adjustedFields
+                                            .map((field) => field.name)
+                                            .toList(growable: false),
+                                        'has_conflict':
+                                            formDraft.errorMessage != null,
+                                      },
+                                    );
+                                    final confirmAction =
+                                        await showLockedCaloriesConfirm(
+                                          autoAdjustProposal,
+                                        );
+                                    if (confirmAction == 'save_as_entered') {
+                                      _trackMealEditEvent(
+                                        'meal_edit_locked_conflict_save_as_entered',
+                                        {
+                                          'source': mealEditSource,
+                                          'locked_fields_count':
+                                              formDraft.lockedFields.length,
+                                          'manually_edited_macro_count':
+                                              formDraft
+                                                  .manuallyEditedMacroFields
+                                                  .length,
+                                          'adjusted_fields': autoAdjustProposal
+                                              .adjustedFields
+                                              .map((field) => field.name)
+                                              .toList(growable: false),
+                                          'has_conflict':
+                                              formDraft.errorMessage != null,
+                                        },
+                                      );
+                                    } else if (confirmAction != 'auto_adjust') {
+                                      return;
+                                    } else {
+                                      formDraft =
+                                          autoAdjustProposal.adjustedDraft;
+                                      syncControllersFromDraft();
+                                      _trackMealEditEvent(
+                                        'meal_edit_locked_conflict_auto_adjust_saved',
+                                        {
+                                          'source': mealEditSource,
+                                          'locked_fields_count':
+                                              formDraft.lockedFields.length,
+                                          'manually_edited_macro_count':
+                                              formDraft
+                                                  .manuallyEditedMacroFields
+                                                  .length,
+                                          'adjusted_fields': autoAdjustProposal
+                                              .adjustedFields
+                                              .map((field) => field.name)
+                                              .toList(growable: false),
+                                          'has_conflict':
+                                              formDraft.errorMessage != null,
+                                        },
+                                      );
+                                      setSheetState(() {
+                                        formMessage = formDraft.inlineMessage;
+                                      });
+                                    }
+                                  } else if (formDraft
+                                      .hasCaloriesLockedConflict) {
+                                    _trackMealEditEvent(
+                                      'meal_edit_locked_conflict_unresolvable',
+                                      {
+                                        'source': mealEditSource,
+                                        'locked_fields_count':
+                                            formDraft.lockedFields.length,
+                                        'manually_edited_macro_count': formDraft
+                                            .manuallyEditedMacroFields
+                                            .length,
+                                        'has_conflict':
+                                            formDraft.errorMessage != null,
+                                      },
+                                    );
+                                    setSheetState(() {
+                                      formMessage = formDraft.inlineMessage;
+                                    });
+                                  }
+                                  persistMealDraft(formDraft, setSheetState);
                                 },
-                              );
-                              setSheetState(() {
-                                formMessage = formDraft.inlineMessage;
-                              });
-                            }
-                            persistMealDraft(formDraft, setSheetState);
-                          },
-                          child: Text(
-                            editingMeal == null ? 'Add Meal' : 'Save Changes',
-                            style: const TextStyle(
-                              fontSize: 22 / 1.5,
-                              fontWeight: FontWeight.w700,
+                                child: Text(
+                                  editingMeal == null
+                                      ? 'Add Meal'
+                                      : 'Save Changes',
+                                  style: const TextStyle(
+                                    fontSize: 22 / 1.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ],
@@ -2107,6 +2295,12 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
                             _rebuildSessionsForDay(meal.day, notify: false);
                           });
                           _notifyMealsChanged();
+                          widget.analytics.track(
+                            AnalyticsEvent(
+                              AnalyticsEvents.mealDeleted,
+                              properties: {'source': meal.origin.name},
+                            ),
+                          );
                           Navigator.of(dialogContext).pop();
                         },
                         child: const Text('Delete'),
@@ -2562,7 +2756,7 @@ const List<_ClarificationOption> _clarificationOptions = [
   _ClarificationOption(
     category: DishCategory.bowl,
     label: 'Bowl / Rice dish',
-    hints: const [],
+    hints: [],
   ),
   _ClarificationOption(
     category: DishCategory.pasta,
@@ -2572,19 +2766,9 @@ const List<_ClarificationOption> _clarificationOptions = [
   _ClarificationOption(
     category: DishCategory.mixedPlate,
     label: 'Mixed plate',
-    hints: const [],
+    hints: [],
   ),
 ];
-
-String _clarificationCategoryLabel(DishCategory category) {
-  return switch (category) {
-    DishCategory.soup => 'Soup',
-    DishCategory.salad => 'Salad',
-    DishCategory.bowl => 'Bowl / Rice dish',
-    DishCategory.pasta => 'Pasta / Noodles',
-    DishCategory.mixedPlate => 'Mixed plate',
-  };
-}
 
 String _clarificationHintLabel(String hint) {
   return switch (hint) {

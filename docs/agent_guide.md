@@ -61,6 +61,8 @@ Documentation roles:
 - `docs/README.md`: documentation map and reading order.
 - `docs/agent_guide.md`: current engineering source of truth for agents.
 - `docs/MVP_PRD.md`: `Beta v1` scope, success criteria, and out-of-scope boundaries.
+- `docs/BETA_V1_CHECKLIST.md`: approved beta release gates, success definition, and tester acceptance script.
+- `docs/ANALYTICS.md`: beta event contract and privacy-safe provider integration boundary.
 - `docs/FUTURE_PRODUCT_GOALS.md`: post-v1 roadmap and strategy.
 - `docs/AI_NUTRITION_COACH.md`: future AI nutrition coach specification.
 - `planning/`: public planning notes and launch strategy, less implementation-specific than `docs/`.
@@ -70,7 +72,8 @@ When docs conflict, prefer this order:
 1. current code and tests for runtime behavior
 2. `docs/agent_guide.md` for engineering context
 3. `docs/MVP_PRD.md` for near-term product scope
-4. `docs/FUTURE_PRODUCT_GOALS.md` and `docs/AI_NUTRITION_COACH.md` for post-v1 direction
+4. `docs/BETA_V1_CHECKLIST.md` for beta release readiness
+5. `docs/FUTURE_PRODUCT_GOALS.md` and `docs/AI_NUTRITION_COACH.md` for post-v1 direction
 
 ## 3. End-to-End Flows
 
@@ -325,6 +328,8 @@ Use this as the fastest repo map.
 - `docs/README.md`: documentation map
 - `docs/agent_guide.md`: canonical engineering reference
 - `docs/MVP_PRD.md`: current `Beta v1` product scope
+- `docs/BETA_V1_CHECKLIST.md`: beta release gates and tester script
+- `docs/ANALYTICS.md`: beta analytics event contract
 - `docs/FUTURE_PRODUCT_GOALS.md`: post-v1 roadmap and monetization/integration direction
 - `docs/AI_NUTRITION_COACH.md`: future personalized AI nutrition coach spec
 - `docs/MEAL_EDIT_AUTO_CALC.md`: manual meal editing rules
@@ -676,6 +681,6 @@ If the task is about:
 - home aggregation or persistence side effects: start in `lib/main.dart`
 - coach messaging: start in `lib/home_coach.dart`
 - profile/settings UI: start in `lib/profile/`
-- MVP scope questions: start in `docs/MVP_PRD.md`
+- MVP scope questions: start in `docs/MVP_PRD.md`; for beta readiness, use `docs/BETA_V1_CHECKLIST.md`; for telemetry, use `docs/ANALYTICS.md`
 - future AI nutrition coach questions: start in `docs/AI_NUTRITION_COACH.md`
 - post-v1 roadmap or monetization questions: start in `docs/FUTURE_PRODUCT_GOALS.md`

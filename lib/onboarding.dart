@@ -1,14 +1,25 @@
-
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 enum GoalType { loseWeight, maintain, gainWeight, trackOnly }
+
 enum SexType { male, female }
-enum ActivityLevel { sedentary, lightlyActive, moderatelyActive, veryActive, athlete }
+
+enum ActivityLevel {
+  sedentary,
+  lightlyActive,
+  moderatelyActive,
+  veryActive,
+  athlete,
+}
+
 enum TargetPace { slow, balanced, fast, leanBulk, moderateBulk, maintain }
+
 enum MacroProfile { balanced, highProtein, lowCarb }
+
 enum HeightUnit { cm, ftIn }
+
 enum WeightUnit { kg, lb }
 
 class NutritionPlan {
@@ -174,7 +185,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     }
   }
 
-  double? _toDouble(String raw) => double.tryParse(raw.trim().replaceAll(',', '.'));
+  double? _toDouble(String raw) =>
+      double.tryParse(raw.trim().replaceAll(',', '.'));
   int? _toInt(String raw) => int.tryParse(raw.trim());
 
   double? _heightInCm() {
@@ -195,14 +207,27 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     final age = _toInt(_ageController.text);
     final heightCm = _heightInCm();
     final weightKg = _weightInKg();
-    if (_sexType == null || age == null || heightCm == null || weightKg == null) return null;
-    return _ProfileData(sex: _sexType!, age: age, heightCm: heightCm, weightKg: weightKg);
+    if (_sexType == null ||
+        age == null ||
+        heightCm == null ||
+        weightKg == null) {
+      return null;
+    }
+    return _ProfileData(
+      sex: _sexType!,
+      age: age,
+      heightCm: heightCm,
+      weightKg: weightKg,
+    );
   }
 
   bool _validateBasicProfile() {
     final data = _buildProfileData();
     if (data == null) {
-      setState(() => _basicProfileError = 'Please fill in sex, age, height, and weight.');
+      setState(
+        () =>
+            _basicProfileError = 'Please fill in sex, age, height, and weight.',
+      );
       return false;
     }
     if (data.age < 13 || data.age > 100) {
@@ -210,11 +235,15 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       return false;
     }
     if (data.heightCm < 70 || data.heightCm > 220) {
-      setState(() => _basicProfileError = 'Height must be between 70 and 220 cm.');
+      setState(
+        () => _basicProfileError = 'Height must be between 70 and 220 cm.',
+      );
       return false;
     }
     if (data.weightKg < 30 || data.weightKg > 250) {
-      setState(() => _basicProfileError = 'Weight must be between 30 and 250 kg.');
+      setState(
+        () => _basicProfileError = 'Weight must be between 30 and 250 kg.',
+      );
       return false;
     }
     setState(() => _basicProfileError = null);
@@ -251,7 +280,9 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     return Scaffold(
       extendBodyBehindAppBar: _step == 0,
       appBar: AppBar(
-        backgroundColor: _step == 0 ? Colors.transparent : const Color(0xFFF4F5F8),
+        backgroundColor: _step == 0
+            ? Colors.transparent
+            : const Color(0xFFF4F5F8),
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -278,71 +309,89 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         child: switch (_step) {
           0 => _WelcomeScreen(onContinue: _nextStep),
           1 => _StepScaffold(
-              key: const ValueKey('goal-step'),
-              step: 1,
-              title: "What's your goal?",
-              subtitle: 'Choose what you want to achieve',
-              canContinue: _goalType != null,
-              onContinue: _nextStep,
-              child: _GoalStep(selected: _goalType, onSelected: (v) => _setStateAndNotify(() => _goalType = v)),
+            key: const ValueKey('goal-step'),
+            step: 1,
+            title: "What's your goal?",
+            subtitle: 'Choose what you want to achieve',
+            canContinue: _goalType != null,
+            onContinue: _nextStep,
+            child: _GoalStep(
+              selected: _goalType,
+              onSelected: (v) => _setStateAndNotify(() => _goalType = v),
             ),
+          ),
           2 => _StepScaffold(
-              key: const ValueKey('profile-step'),
-              step: 2,
-              title: 'Basic profile',
-              subtitle: 'Tell us about yourself',
-              canContinue: true,
-              onContinue: () {
-                if (_validateBasicProfile()) _nextStep();
-              },
-              child: _BasicProfileStep(
-                sexType: _sexType,
-                ageController: _ageController,
-                heightController: _heightController,
-                feetController: _feetController,
-                inchesController: _inchesController,
-                weightController: _weightController,
-                heightUnit: _heightUnit,
-                weightUnit: _weightUnit,
-                errorText: _basicProfileError,
-                onSexChanged: (v) => _setStateAndNotify(() => _sexType = v),
-                onHeightUnitChanged: (v) => _setStateAndNotify(() => _heightUnit = v),
-                onWeightUnitChanged: (v) => _setStateAndNotify(() => _weightUnit = v),
-              ),
+            key: const ValueKey('profile-step'),
+            step: 2,
+            title: 'Basic profile',
+            subtitle: 'Tell us about yourself',
+            canContinue: true,
+            onContinue: () {
+              if (_validateBasicProfile()) _nextStep();
+            },
+            child: _BasicProfileStep(
+              sexType: _sexType,
+              ageController: _ageController,
+              heightController: _heightController,
+              feetController: _feetController,
+              inchesController: _inchesController,
+              weightController: _weightController,
+              heightUnit: _heightUnit,
+              weightUnit: _weightUnit,
+              errorText: _basicProfileError,
+              onSexChanged: (v) => _setStateAndNotify(() => _sexType = v),
+              onHeightUnitChanged: (v) =>
+                  _setStateAndNotify(() => _heightUnit = v),
+              onWeightUnitChanged: (v) =>
+                  _setStateAndNotify(() => _weightUnit = v),
             ),
+          ),
           3 => _StepScaffold(
-              key: const ValueKey('activity-step'),
-              step: 3,
-              title: 'Activity level',
-              subtitle: 'How active are you on a typical day?',
-              canContinue: _activityLevel != null,
-              onContinue: _nextStep,
-              child: _ActivityStep(selected: _activityLevel, onSelected: (v) => _setStateAndNotify(() => _activityLevel = v)),
+            key: const ValueKey('activity-step'),
+            step: 3,
+            title: 'Activity level',
+            subtitle: 'How active are you on a typical day?',
+            canContinue: _activityLevel != null,
+            onContinue: _nextStep,
+            child: _ActivityStep(
+              selected: _activityLevel,
+              onSelected: (v) => _setStateAndNotify(() => _activityLevel = v),
             ),
+          ),
           4 => _StepScaffold(
-              key: const ValueKey('pace-step'),
-              step: 4,
-              title: 'Choose your pace',
-              subtitle: _goalType == GoalType.gainWeight ? 'How fast do you want to gain weight?' : 'How fast do you want to reach your goal?',
-              canContinue: _targetPace != null,
-              onContinue: _nextStep,
-              child: _PaceStep(goalType: _goalType, selected: _targetPace, onSelected: (v) => _setStateAndNotify(() => _targetPace = v)),
+            key: const ValueKey('pace-step'),
+            step: 4,
+            title: 'Choose your pace',
+            subtitle: _goalType == GoalType.gainWeight
+                ? 'How fast do you want to gain weight?'
+                : 'How fast do you want to reach your goal?',
+            canContinue: _targetPace != null,
+            onContinue: _nextStep,
+            child: _PaceStep(
+              goalType: _goalType,
+              selected: _targetPace,
+              onSelected: (v) => _setStateAndNotify(() => _targetPace = v),
             ),
+          ),
           5 => _StepScaffold(
-              key: const ValueKey('macro-step'),
-              step: 5,
-              title: 'Macro preference',
-              subtitle: 'How do you want to split your macros?',
-              canContinue: true,
-              onContinue: _nextStep,
-              child: _MacroStep(selected: _macroProfile, onSelected: (v) => _setStateAndNotify(() => _macroProfile = v), onSkip: _nextStep),
+            key: const ValueKey('macro-step'),
+            step: 5,
+            title: 'Macro preference',
+            subtitle: 'How do you want to split your macros?',
+            canContinue: true,
+            onContinue: _nextStep,
+            child: _MacroStep(
+              selected: _macroProfile,
+              onSelected: (v) => _setStateAndNotify(() => _macroProfile = v),
+              onSkip: _nextStep,
             ),
+          ),
           _ => _ResultStep(
-              result: _buildResult(),
-              onStart: _completeOnboarding,
-              isSubmitting: _isCompleting,
-              onEdit: () => _setStateAndNotify(() => _step = 5),
-            ),
+            result: _buildResult(),
+            onStart: _completeOnboarding,
+            isSubmitting: _isCompleting,
+            onEdit: () => _setStateAndNotify(() => _step = 5),
+          ),
         },
       ),
     );
@@ -377,7 +426,13 @@ class _StepScaffold extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Step $step of 6', style: const TextStyle(fontSize: 16, color: Color(0xFF525A6E))),
+                Text(
+                  'Step $step of 6',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF525A6E),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
@@ -385,22 +440,42 @@ class _StepScaffold extends StatelessWidget {
                     value: step / 6,
                     minHeight: 5,
                     backgroundColor: const Color(0xFFD5D8E0),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF2563EB),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text(subtitle, style: const TextStyle(fontSize: 16, color: Color(0xFF4A5568))),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF4A5568),
+                  ),
+                ),
               ],
             ),
           ),
           Expanded(
-            child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 24), child: child),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+              child: child,
+            ),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(top: BorderSide(color: Color(0xFFDADDE5)))),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8F9FB),
+              border: Border(top: BorderSide(color: Color(0xFFDADDE5))),
+            ),
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -409,10 +484,15 @@ class _StepScaffold extends StatelessWidget {
                   disabledBackgroundColor: const Color(0xFFC4CAD5),
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(60),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 onPressed: canContinue ? onContinue : null,
-                child: const Text('Continue', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'Continue',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ),
@@ -446,20 +526,34 @@ class _WelcomeScreen extends StatelessWidget {
               Container(
                 width: 120,
                 height: 120,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(34)),
-                child: const Center(child: Text('🍎', style: TextStyle(fontSize: 54))),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(34),
+                ),
+                child: const Center(
+                  child: Text('🍎', style: TextStyle(fontSize: 54)),
+                ),
               ),
               const SizedBox(height: 38),
               const Text(
                 'Track calories from food photos',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 31, height: 1.15, color: Colors.white, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 31,
+                  height: 1.15,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 14),
               Text(
                 'Log meals, track calories and macros, and stay on plan.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, color: Colors.white.withValues(alpha: 0.9), height: 1.3),
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.white.withValues(alpha: 0.9),
+                  height: 1.3,
+                ),
               ),
               const Spacer(),
               SizedBox(
@@ -469,18 +563,15 @@ class _WelcomeScreen extends StatelessWidget {
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF2563EB),
                     minimumSize: const Size.fromHeight(66),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(22),
+                    ),
                   ),
                   onPressed: onContinue,
-                  child: const Text('Get started', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextButton(
-                onPressed: onContinue,
-                child: Text(
-                  'I already have an account',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontWeight: FontWeight.w700, fontSize: 16),
+                  child: const Text(
+                    'Get started',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ],
@@ -490,6 +581,7 @@ class _WelcomeScreen extends StatelessWidget {
     );
   }
 }
+
 class _GoalStep extends StatelessWidget {
   final GoalType? selected;
   final ValueChanged<GoalType> onSelected;
@@ -500,10 +592,38 @@ class _GoalStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _ChoiceCard(title: 'Lose fat', subtitle: 'Burn calories and lose weight', selected: selected == GoalType.loseWeight, icon: Icons.trending_down_rounded, iconGradient: const [Color(0xFFFF4040), Color(0xFFFF7A00)], onTap: () => onSelected(GoalType.loseWeight)),
-        _ChoiceCard(title: 'Maintain', subtitle: 'Stay at current weight', selected: selected == GoalType.maintain, icon: Icons.graphic_eq_rounded, iconGradient: const [Color(0xFF3B82F6), Color(0xFF06B6D4)], onTap: () => onSelected(GoalType.maintain)),
-        _ChoiceCard(title: 'Gain muscle', subtitle: 'Build strength and mass', selected: selected == GoalType.gainWeight, icon: Icons.trending_up_rounded, iconGradient: const [Color(0xFF22C55E), Color(0xFF10B981)], onTap: () => onSelected(GoalType.gainWeight)),
-        _ChoiceCard(title: 'Just track', subtitle: 'Monitor nutrition habits', selected: selected == GoalType.trackOnly, icon: Icons.my_location_rounded, iconGradient: const [Color(0xFFA855F7), Color(0xFFEC4899)], onTap: () => onSelected(GoalType.trackOnly)),
+        _ChoiceCard(
+          title: 'Lose fat',
+          subtitle: 'Burn calories and lose weight',
+          selected: selected == GoalType.loseWeight,
+          icon: Icons.trending_down_rounded,
+          iconGradient: const [Color(0xFFFF4040), Color(0xFFFF7A00)],
+          onTap: () => onSelected(GoalType.loseWeight),
+        ),
+        _ChoiceCard(
+          title: 'Maintain',
+          subtitle: 'Stay at current weight',
+          selected: selected == GoalType.maintain,
+          icon: Icons.graphic_eq_rounded,
+          iconGradient: const [Color(0xFF3B82F6), Color(0xFF06B6D4)],
+          onTap: () => onSelected(GoalType.maintain),
+        ),
+        _ChoiceCard(
+          title: 'Gain muscle',
+          subtitle: 'Build strength and mass',
+          selected: selected == GoalType.gainWeight,
+          icon: Icons.trending_up_rounded,
+          iconGradient: const [Color(0xFF22C55E), Color(0xFF10B981)],
+          onTap: () => onSelected(GoalType.gainWeight),
+        ),
+        _ChoiceCard(
+          title: 'Just track',
+          subtitle: 'Monitor nutrition habits',
+          selected: selected == GoalType.trackOnly,
+          icon: Icons.my_location_rounded,
+          iconGradient: const [Color(0xFFA855F7), Color(0xFFEC4899)],
+          onTap: () => onSelected(GoalType.trackOnly),
+        ),
       ],
     );
   }
@@ -543,13 +663,28 @@ class _BasicProfileStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Sex', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const Text(
+          'Sex',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: _ChipButton(label: 'Male', selected: sexType == SexType.male, onTap: () => onSexChanged(SexType.male))),
+            Expanded(
+              child: _ChipButton(
+                label: 'Male',
+                selected: sexType == SexType.male,
+                onTap: () => onSexChanged(SexType.male),
+              ),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: _ChipButton(label: 'Female', selected: sexType == SexType.female, onTap: () => onSexChanged(SexType.female))),
+            Expanded(
+              child: _ChipButton(
+                label: 'Female',
+                selected: sexType == SexType.female,
+                onTap: () => onSexChanged(SexType.female),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 18),
@@ -557,7 +692,10 @@ class _BasicProfileStep extends StatelessWidget {
         const SizedBox(height: 14),
         Row(
           children: [
-            const Text('Height', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              'Height',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             const Spacer(),
             _UnitToggle<HeightUnit>(
               values: const [HeightUnit.cm, HeightUnit.ftIn],
@@ -569,19 +707,38 @@ class _BasicProfileStep extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         if (heightUnit == HeightUnit.cm)
-          _LabeledInput(controller: heightController, label: 'Height, cm', hint: 'e.g. 178')
+          _LabeledInput(
+            controller: heightController,
+            label: 'Height, cm',
+            hint: 'e.g. 178',
+          )
         else
           Row(
             children: [
-              Expanded(child: _LabeledInput(controller: feetController, label: 'Feet', hint: 'e.g. 5')),
+              Expanded(
+                child: _LabeledInput(
+                  controller: feetController,
+                  label: 'Feet',
+                  hint: 'e.g. 5',
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _LabeledInput(controller: inchesController, label: 'Inches', hint: 'e.g. 10')),
+              Expanded(
+                child: _LabeledInput(
+                  controller: inchesController,
+                  label: 'Inches',
+                  hint: 'e.g. 10',
+                ),
+              ),
             ],
           ),
         const SizedBox(height: 14),
         Row(
           children: [
-            const Text('Weight', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              'Weight',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             const Spacer(),
             _UnitToggle<WeightUnit>(
               values: const [WeightUnit.kg, WeightUnit.lb],
@@ -592,10 +749,17 @@ class _BasicProfileStep extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 10),
-        _LabeledInput(controller: weightController, label: 'Weight, ${weightUnit == WeightUnit.kg ? 'kg' : 'lb'}', hint: weightUnit == WeightUnit.kg ? 'e.g. 82' : 'e.g. 181'),
+        _LabeledInput(
+          controller: weightController,
+          label: 'Weight, ${weightUnit == WeightUnit.kg ? 'kg' : 'lb'}',
+          hint: weightUnit == WeightUnit.kg ? 'e.g. 82' : 'e.g. 181',
+        ),
         if (errorText != null) ...[
           const SizedBox(height: 12),
-          Text(errorText!, style: const TextStyle(color: Colors.red, fontSize: 14)),
+          Text(
+            errorText!,
+            style: const TextStyle(color: Colors.red, fontSize: 14),
+          ),
         ],
       ],
     );
@@ -612,10 +776,38 @@ class _ActivityStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _ChoiceCard(title: 'Sedentary', subtitle: 'Mostly sitting, little exercise', selected: selected == ActivityLevel.sedentary, icon: Icons.chair_outlined, iconGradient: const [Color(0xFF9CA3AF), Color(0xFF6B7280)], onTap: () => onSelected(ActivityLevel.sedentary)),
-        _ChoiceCard(title: 'Lightly active', subtitle: 'Light workouts 1-2 times/week', selected: selected == ActivityLevel.lightlyActive, icon: Icons.person_outline_rounded, iconGradient: const [Color(0xFF60A5FA), Color(0xFF2563EB)], onTap: () => onSelected(ActivityLevel.lightlyActive)),
-        _ChoiceCard(title: 'Moderately active', subtitle: 'Moderate activity (3-5 workouts/week)', selected: selected == ActivityLevel.moderatelyActive, icon: Icons.fitness_center_rounded, iconGradient: const [Color(0xFF22C55E), Color(0xFF10B981)], onTap: () => onSelected(ActivityLevel.moderatelyActive)),
-        _ChoiceCard(title: 'Very active', subtitle: 'High activity (6-7 workouts/week)', selected: selected == ActivityLevel.veryActive, icon: Icons.local_fire_department_outlined, iconGradient: const [Color(0xFFF97316), Color(0xFFEF4444)], onTap: () => onSelected(ActivityLevel.veryActive)),
+        _ChoiceCard(
+          title: 'Sedentary',
+          subtitle: 'Mostly sitting, little exercise',
+          selected: selected == ActivityLevel.sedentary,
+          icon: Icons.chair_outlined,
+          iconGradient: const [Color(0xFF9CA3AF), Color(0xFF6B7280)],
+          onTap: () => onSelected(ActivityLevel.sedentary),
+        ),
+        _ChoiceCard(
+          title: 'Lightly active',
+          subtitle: 'Light workouts 1-2 times/week',
+          selected: selected == ActivityLevel.lightlyActive,
+          icon: Icons.person_outline_rounded,
+          iconGradient: const [Color(0xFF60A5FA), Color(0xFF2563EB)],
+          onTap: () => onSelected(ActivityLevel.lightlyActive),
+        ),
+        _ChoiceCard(
+          title: 'Moderately active',
+          subtitle: 'Moderate activity (3-5 workouts/week)',
+          selected: selected == ActivityLevel.moderatelyActive,
+          icon: Icons.fitness_center_rounded,
+          iconGradient: const [Color(0xFF22C55E), Color(0xFF10B981)],
+          onTap: () => onSelected(ActivityLevel.moderatelyActive),
+        ),
+        _ChoiceCard(
+          title: 'Very active',
+          subtitle: 'High activity (6-7 workouts/week)',
+          selected: selected == ActivityLevel.veryActive,
+          icon: Icons.local_fire_department_outlined,
+          iconGradient: const [Color(0xFFF97316), Color(0xFFEF4444)],
+          onTap: () => onSelected(ActivityLevel.veryActive),
+        ),
       ],
     );
   }
@@ -626,46 +818,129 @@ class _PaceStep extends StatelessWidget {
   final TargetPace? selected;
   final ValueChanged<TargetPace> onSelected;
 
-  const _PaceStep({required this.goalType, required this.selected, required this.onSelected});
+  const _PaceStep({
+    required this.goalType,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (goalType == GoalType.maintain || goalType == GoalType.trackOnly) {
-      return _ChoiceCard(title: 'Maintain calories', subtitle: 'No deficit or surplus', selected: selected == TargetPace.maintain, icon: Icons.horizontal_rule_rounded, iconGradient: const [Color(0xFF3B82F6), Color(0xFF2563EB)], onTap: () => onSelected(TargetPace.maintain), badge: 'Recommended');
+      return _ChoiceCard(
+        title: 'Maintain calories',
+        subtitle: 'No deficit or surplus',
+        selected: selected == TargetPace.maintain,
+        icon: Icons.horizontal_rule_rounded,
+        iconGradient: const [Color(0xFF3B82F6), Color(0xFF2563EB)],
+        onTap: () => onSelected(TargetPace.maintain),
+        badge: 'Recommended',
+      );
     }
 
     if (goalType == GoalType.gainWeight) {
       return Column(
         children: [
-          _ChoiceCard(title: 'Lean bulk', subtitle: 'Controlled gain, +250 kcal', selected: selected == TargetPace.leanBulk, icon: Icons.trending_up_rounded, iconGradient: const [Color(0xFF22C55E), Color(0xFF059669)], onTap: () => onSelected(TargetPace.leanBulk), footnote: '~0.3 lb/week'),
-          _ChoiceCard(title: 'Moderate bulk', subtitle: 'Faster gain, +350 kcal', selected: selected == TargetPace.moderateBulk, icon: Icons.flash_on_rounded, iconGradient: const [Color(0xFFF97316), Color(0xFFEF4444)], onTap: () => onSelected(TargetPace.moderateBulk), footnote: '~0.6 lb/week'),
+          _ChoiceCard(
+            title: 'Lean bulk',
+            subtitle: 'Controlled gain, +250 kcal',
+            selected: selected == TargetPace.leanBulk,
+            icon: Icons.trending_up_rounded,
+            iconGradient: const [Color(0xFF22C55E), Color(0xFF059669)],
+            onTap: () => onSelected(TargetPace.leanBulk),
+            footnote: '~0.3 lb/week',
+          ),
+          _ChoiceCard(
+            title: 'Moderate bulk',
+            subtitle: 'Faster gain, +350 kcal',
+            selected: selected == TargetPace.moderateBulk,
+            icon: Icons.flash_on_rounded,
+            iconGradient: const [Color(0xFFF97316), Color(0xFFEF4444)],
+            onTap: () => onSelected(TargetPace.moderateBulk),
+            footnote: '~0.6 lb/week',
+          ),
         ],
       );
     }
 
     return Column(
       children: [
-        _ChoiceCard(title: 'Slow', subtitle: 'Easier to sustain, -300 kcal', selected: selected == TargetPace.slow, icon: Icons.adjust_rounded, iconGradient: const [Color(0xFF22C55E), Color(0xFF06B6D4)], onTap: () => onSelected(TargetPace.slow), footnote: '~0.5 lb/week'),
-        _ChoiceCard(title: 'Balanced', subtitle: 'Steady progress, -400 kcal', selected: selected == TargetPace.balanced, icon: Icons.trending_up_rounded, iconGradient: const [Color(0xFF60A5FA), Color(0xFF2563EB)], onTap: () => onSelected(TargetPace.balanced), badge: 'Recommended', footnote: '~1 lb/week'),
-        _ChoiceCard(title: 'Faster', subtitle: 'More aggressive, -500 kcal', selected: selected == TargetPace.fast, icon: Icons.bolt_rounded, iconGradient: const [Color(0xFFF97316), Color(0xFFEF4444)], onTap: () => onSelected(TargetPace.fast), footnote: '~1.5 lb/week'),
+        _ChoiceCard(
+          title: 'Slow',
+          subtitle: 'Easier to sustain, -300 kcal',
+          selected: selected == TargetPace.slow,
+          icon: Icons.adjust_rounded,
+          iconGradient: const [Color(0xFF22C55E), Color(0xFF06B6D4)],
+          onTap: () => onSelected(TargetPace.slow),
+          footnote: '~0.5 lb/week',
+        ),
+        _ChoiceCard(
+          title: 'Balanced',
+          subtitle: 'Steady progress, -400 kcal',
+          selected: selected == TargetPace.balanced,
+          icon: Icons.trending_up_rounded,
+          iconGradient: const [Color(0xFF60A5FA), Color(0xFF2563EB)],
+          onTap: () => onSelected(TargetPace.balanced),
+          badge: 'Recommended',
+          footnote: '~1 lb/week',
+        ),
+        _ChoiceCard(
+          title: 'Faster',
+          subtitle: 'More aggressive, -500 kcal',
+          selected: selected == TargetPace.fast,
+          icon: Icons.bolt_rounded,
+          iconGradient: const [Color(0xFFF97316), Color(0xFFEF4444)],
+          onTap: () => onSelected(TargetPace.fast),
+          footnote: '~1.5 lb/week',
+        ),
       ],
     );
   }
 }
+
 class _MacroStep extends StatelessWidget {
   final MacroProfile selected;
   final ValueChanged<MacroProfile> onSelected;
   final VoidCallback onSkip;
 
-  const _MacroStep({required this.selected, required this.onSelected, required this.onSkip});
+  const _MacroStep({
+    required this.selected,
+    required this.onSelected,
+    required this.onSkip,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _ChoiceCard(title: 'Balanced', subtitle: 'Balanced macro targets', selected: selected == MacroProfile.balanced, icon: Icons.balance_rounded, iconGradient: const [Color(0xFF60A5FA), Color(0xFF2563EB)], onTap: () => onSelected(MacroProfile.balanced), badge: 'Recommended', footnote: 'Protein 1.6-1.8 g/kg, Fat 0.8 g/kg'),
-        _ChoiceCard(title: 'High protein', subtitle: 'Higher protein target', selected: selected == MacroProfile.highProtein, icon: Icons.set_meal_outlined, iconGradient: const [Color(0xFFFB7185), Color(0xFFEF4444)], onTap: () => onSelected(MacroProfile.highProtein), footnote: 'Protein up to 2.0 g/kg while cutting'),
-        _ChoiceCard(title: 'Low carb', subtitle: 'Lower carbs, higher fats', selected: selected == MacroProfile.lowCarb, icon: Icons.grain_outlined, iconGradient: const [Color(0xFF22C55E), Color(0xFF10B981)], onTap: () => onSelected(MacroProfile.lowCarb), footnote: 'Fat priority with carbs from remaining calories'),
+        _ChoiceCard(
+          title: 'Balanced',
+          subtitle: 'Balanced macro targets',
+          selected: selected == MacroProfile.balanced,
+          icon: Icons.balance_rounded,
+          iconGradient: const [Color(0xFF60A5FA), Color(0xFF2563EB)],
+          onTap: () => onSelected(MacroProfile.balanced),
+          badge: 'Recommended',
+          footnote: 'Protein 1.6-1.8 g/kg, Fat 0.8 g/kg',
+        ),
+        _ChoiceCard(
+          title: 'High protein',
+          subtitle: 'Higher protein target',
+          selected: selected == MacroProfile.highProtein,
+          icon: Icons.set_meal_outlined,
+          iconGradient: const [Color(0xFFFB7185), Color(0xFFEF4444)],
+          onTap: () => onSelected(MacroProfile.highProtein),
+          footnote: 'Protein up to 2.0 g/kg while cutting',
+        ),
+        _ChoiceCard(
+          title: 'Low carb',
+          subtitle: 'Lower carbs, higher fats',
+          selected: selected == MacroProfile.lowCarb,
+          icon: Icons.grain_outlined,
+          iconGradient: const [Color(0xFF22C55E), Color(0xFF10B981)],
+          onTap: () => onSelected(MacroProfile.lowCarb),
+          footnote: 'Fat priority with carbs from remaining calories',
+        ),
         const SizedBox(height: 8),
         TextButton(onPressed: onSkip, child: const Text("I'll edit later")),
       ],
@@ -679,7 +954,12 @@ class _ResultStep extends StatelessWidget {
   final bool isSubmitting;
   final VoidCallback onEdit;
 
-  const _ResultStep({required this.result, required this.onStart, required this.isSubmitting, required this.onEdit});
+  const _ResultStep({
+    required this.result,
+    required this.onStart,
+    required this.isSubmitting,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -689,26 +969,56 @@ class _ResultStep extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Step 6 of 6', style: TextStyle(fontSize: 16, color: Color(0xFF525A6E))),
+            const Text(
+              'Step 6 of 6',
+              style: TextStyle(fontSize: 16, color: Color(0xFF525A6E)),
+            ),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
-              child: const LinearProgressIndicator(value: 1, minHeight: 5, backgroundColor: Color(0xFFD5D8E0), valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB))),
+              child: const LinearProgressIndicator(
+                value: 1,
+                minHeight: 5,
+                backgroundColor: Color(0xFFD5D8E0),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+              ),
             ),
             const SizedBox(height: 24),
-            const Text('Your plan is ready', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700)),
+            const Text(
+              'Your plan is ready',
+              style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
-            const Text('Based on your goal and activity level', style: TextStyle(fontSize: 16, color: Color(0xFF4A5568))),
+            const Text(
+              'Based on your goal and activity level',
+              style: TextStyle(fontSize: 16, color: Color(0xFF4A5568)),
+            ),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFDCE1EB))),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFDCE1EB)),
+              ),
               child: Column(
                 children: [
-                  _ResultRow(label: 'Daily calories', value: '${result.plan.calorieTarget} kcal'),
-                  _ResultRow(label: 'Protein', value: '${result.plan.proteinTargetG} g'),
-                  _ResultRow(label: 'Fat', value: '${result.plan.fatTargetG} g'),
-                  _ResultRow(label: 'Carbs', value: '${result.plan.carbsTargetG} g'),
+                  _ResultRow(
+                    label: 'Daily calories',
+                    value: '${result.plan.calorieTarget} kcal',
+                  ),
+                  _ResultRow(
+                    label: 'Protein',
+                    value: '${result.plan.proteinTargetG} g',
+                  ),
+                  _ResultRow(
+                    label: 'Fat',
+                    value: '${result.plan.fatTargetG} g',
+                  ),
+                  _ResultRow(
+                    label: 'Carbs',
+                    value: '${result.plan.carbsTargetG} g',
+                  ),
                 ],
               ),
             ),
@@ -716,16 +1026,33 @@ class _ResultStep extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white, minimumSize: const Size.fromHeight(58), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(58),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
                 onPressed: isSubmitting ? null : () => onStart(),
-                child: const Text('Start tracking', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'Start tracking',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
               ),
             ),
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(54), side: const BorderSide(color: Color(0xFF2563EB)), foregroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  side: const BorderSide(color: Color(0xFF2563EB)),
+                  foregroundColor: const Color(0xFF2563EB),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
                 onPressed: isSubmitting ? null : onEdit,
                 child: const Text('Edit targets'),
               ),
@@ -749,9 +1076,15 @@ class _ResultRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(fontSize: 16, color: Color(0xFF4A5568))),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 16, color: Color(0xFF4A5568)),
+          ),
           const Spacer(),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
@@ -768,7 +1101,16 @@ class _ChoiceCard extends StatelessWidget {
   final String? badge;
   final String? footnote;
 
-  const _ChoiceCard({required this.title, required this.subtitle, required this.selected, required this.icon, required this.iconGradient, required this.onTap, this.badge, this.footnote});
+  const _ChoiceCard({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.icon,
+    required this.iconGradient,
+    required this.onTap,
+    this.badge,
+    this.footnote,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -780,13 +1122,25 @@ class _ChoiceCard extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-          decoration: BoxDecoration(color: selected ? const Color(0xFFEFF4FF) : Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: selected ? const Color(0xFF2563EB) : const Color(0xFFD6DBE5), width: selected ? 2 : 1.2)),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFEFF4FF) : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFFD6DBE5),
+              width: selected ? 2 : 1.2,
+            ),
+          ),
           child: Row(
             children: [
               Container(
                 width: 70,
                 height: 70,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: LinearGradient(colors: iconGradient)),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(colors: iconGradient),
+                ),
                 child: Icon(icon, color: Colors.white, size: 34),
               ),
               const SizedBox(width: 14),
@@ -796,25 +1150,67 @@ class _ChoiceCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700))),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 23,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                         if (badge != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(color: const Color(0xFF2563EB), borderRadius: BorderRadius.circular(999)),
-                            child: Text(badge!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              badge!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: const TextStyle(fontSize: 16, color: Color(0xFF334155))),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF334155),
+                      ),
+                    ),
                     if (footnote != null) ...[
                       const SizedBox(height: 3),
-                      Text(footnote!, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
+                      Text(
+                        footnote!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
-              if (selected) const CircleAvatar(radius: 13, backgroundColor: Color(0xFF2563EB), child: Icon(Icons.check_rounded, color: Colors.white, size: 16)),
+              if (selected)
+                const CircleAvatar(
+                  radius: 13,
+                  backgroundColor: Color(0xFF2563EB),
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
             ],
           ),
         ),
@@ -822,12 +1218,17 @@ class _ChoiceCard extends StatelessWidget {
     );
   }
 }
+
 class _ChipButton extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _ChipButton({required this.label, required this.selected, required this.onTap});
+  const _ChipButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -837,8 +1238,20 @@ class _ChipButton extends StatelessWidget {
       child: Container(
         height: 48,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: selected ? const Color(0xFF2563EB) : Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: selected ? const Color(0xFF2563EB) : const Color(0xFFD6DBE5))),
-        child: Text(label, style: TextStyle(color: selected ? Colors.white : const Color(0xFF0F172A), fontWeight: FontWeight.w700)),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF2563EB) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? const Color(0xFF2563EB) : const Color(0xFFD6DBE5),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : const Color(0xFF0F172A),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }
@@ -849,7 +1262,11 @@ class _LabeledInput extends StatelessWidget {
   final String label;
   final String hint;
 
-  const _LabeledInput({required this.controller, required this.label, required this.hint});
+  const _LabeledInput({
+    required this.controller,
+    required this.label,
+    required this.hint,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -861,8 +1278,14 @@ class _LabeledInput extends StatelessWidget {
         hintText: hint,
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFD6DBE5))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFD6DBE5))),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD6DBE5)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD6DBE5)),
+        ),
       ),
     );
   }
@@ -874,12 +1297,21 @@ class _UnitToggle<T> extends StatelessWidget {
   final String Function(T value) labelBuilder;
   final ValueChanged<T> onChanged;
 
-  const _UnitToggle({required this.values, required this.selected, required this.labelBuilder, required this.onChanged});
+  const _UnitToggle({
+    required this.values,
+    required this.selected,
+    required this.labelBuilder,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), border: Border.all(color: const Color(0xFFD6DBE5))),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFD6DBE5)),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: values
@@ -887,9 +1319,25 @@ class _UnitToggle<T> extends StatelessWidget {
               (value) => GestureDetector(
                 onTap: () => onChanged(value),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(color: value == selected ? const Color(0xFF2563EB) : Colors.transparent, borderRadius: BorderRadius.circular(999)),
-                  child: Text(labelBuilder(value), style: TextStyle(color: value == selected ? Colors.white : const Color(0xFF334155), fontWeight: FontWeight.w700)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: value == selected
+                        ? const Color(0xFF2563EB)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    labelBuilder(value),
+                    style: TextStyle(
+                      color: value == selected
+                          ? Colors.white
+                          : const Color(0xFF334155),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             )
@@ -905,7 +1353,12 @@ class _ProfileData {
   final double heightCm;
   final double weightKg;
 
-  const _ProfileData({required this.sex, required this.age, required this.heightCm, required this.weightKg});
+  const _ProfileData({
+    required this.sex,
+    required this.age,
+    required this.heightCm,
+    required this.weightKg,
+  });
 }
 
 NutritionPlan calculateNutritionPlan({
@@ -918,9 +1371,17 @@ NutritionPlan calculateNutritionPlan({
   required TargetPace pace,
   required MacroProfile macroProfile,
 }) {
-  final bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + (sex == SexType.male ? 5 : -161);
+  final bmr =
+      (10 * weightKg) +
+      (6.25 * heightCm) -
+      (5 * age) +
+      (sex == SexType.male ? 5 : -161);
   final tdee = bmr * _activityMultiplier(activityLevel);
-  final calorieTarget = _targetCalories(tdee: tdee, goalType: goalType, pace: pace);
+  final calorieTarget = _targetCalories(
+    tdee: tdee,
+    goalType: goalType,
+    pace: pace,
+  );
 
   final baseProteinPerKg = switch (goalType) {
     GoalType.loseWeight => 2.0,
@@ -965,7 +1426,11 @@ double _activityMultiplier(ActivityLevel level) {
   }
 }
 
-double _targetCalories({required double tdee, required GoalType goalType, required TargetPace pace}) {
+double _targetCalories({
+  required double tdee,
+  required GoalType goalType,
+  required TargetPace pace,
+}) {
   switch (goalType) {
     case GoalType.maintain:
     case GoalType.trackOnly:
@@ -1004,16 +1469,6 @@ int _calorieAdjustment(GoalType goal, TargetPace pace) {
 
   return 0;
 }
-
-
-
-
-
-
-
-
-
-
 
 class OnboardingDraft {
   final int step;
@@ -1067,11 +1522,20 @@ class OnboardingDraft {
       step: ((json['step'] as num?) ?? 0).toInt().clamp(0, 6),
       goalType: _enumByName(GoalType.values, json['goalType'] as String?),
       sexType: _enumByName(SexType.values, json['sexType'] as String?),
-      activityLevel: _enumByName(ActivityLevel.values, json['activityLevel'] as String?),
+      activityLevel: _enumByName(
+        ActivityLevel.values,
+        json['activityLevel'] as String?,
+      ),
       targetPace: _enumByName(TargetPace.values, json['targetPace'] as String?),
-      macroProfile: _enumByName(MacroProfile.values, json['macroProfile'] as String?) ?? MacroProfile.balanced,
-      heightUnit: _enumByName(HeightUnit.values, json['heightUnit'] as String?) ?? HeightUnit.cm,
-      weightUnit: _enumByName(WeightUnit.values, json['weightUnit'] as String?) ?? WeightUnit.kg,
+      macroProfile:
+          _enumByName(MacroProfile.values, json['macroProfile'] as String?) ??
+          MacroProfile.balanced,
+      heightUnit:
+          _enumByName(HeightUnit.values, json['heightUnit'] as String?) ??
+          HeightUnit.cm,
+      weightUnit:
+          _enumByName(WeightUnit.values, json['weightUnit'] as String?) ??
+          WeightUnit.kg,
       ageText: (json['ageText'] as String?) ?? '',
       heightText: (json['heightText'] as String?) ?? '',
       feetText: (json['feetText'] as String?) ?? '',
@@ -1088,7 +1552,3 @@ T? _enumByName<T extends Enum>(List<T> values, String? name) {
   }
   return null;
 }
-
-
-
-

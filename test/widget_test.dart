@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:my_new_app/analytics.dart';
 import 'package:my_new_app/main.dart';
 import 'package:my_new_app/onboarding.dart';
+import 'package:my_new_app/photo_food/api_error.dart';
 import 'package:my_new_app/photo_food/controller.dart';
 import 'package:my_new_app/photo_food/models.dart';
 import 'package:my_new_app/photo_food/photo_picker.dart';
@@ -32,16 +34,90 @@ void main() {
     expect(find.text('Choose from gallery'), findsOneWidget);
   });
 
+  testWidgets('manual logging records first-meal core-loop events', (
+    tester,
+  ) async {
+    final analytics = _RecordingAnalytics();
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true, analytics: analytics),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Test meal');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '30');
+    await tester.ensureVisible(find.text('Add Meal').last);
+    await tester.tap(find.text('Add Meal').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      analytics.events.map((event) => event.name),
+      containsAll(<String>[
+        AnalyticsEvents.mealLogged,
+        AnalyticsEvents.firstMealLogged,
+      ]),
+    );
+    expect(
+      analytics.events
+          .firstWhere((event) => event.name == AnalyticsEvents.mealLogged)
+          .properties,
+      {'source': 'manual', 'day_offset': 0, 'creates_new_session': true},
+    );
+  });
+
+  testWidgets('manual meal requires a non-empty name', (tester) async {
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), '   ');
+    await tester.enterText(fields.at(1), '420');
+    await tester.enterText(fields.at(2), '250');
+    await tester.enterText(fields.at(3), '25');
+    await tester.enterText(fields.at(4), '10');
+    await tester.enterText(fields.at(5), '40');
+    await tester.tap(find.byKey(const Key('manual-meal-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('meal-form-message')), findsOneWidget);
+    expect(find.text('Add Meal'), findsWidgets);
+    expect(find.byKey(const Key('latest-added-card')), findsNothing);
+  });
+
   testWidgets('requires confirmation opens portion bottom sheet', (
     tester,
   ) async {
+    final analytics = _RecordingAnalytics();
     final controller = PhotoFoodController(
       repository: _FakeRepository(requiresConfirmation: true),
       photoPicker: _FakePicker(file: XFile('fake.jpg')),
     );
 
     await tester.pumpWidget(
-      MyApp(controller: controller, skipOnboarding: true),
+      MyApp(controller: controller, skipOnboarding: true, analytics: analytics),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('fab-add')));
@@ -57,6 +133,54 @@ void main() {
     expect(find.byKey(const Key('portion-sheet')), findsOneWidget);
     expect(find.byKey(const Key('portion-input')), findsOneWidget);
     expect(find.byKey(const Key('portion-use-ai-estimate')), findsOneWidget);
+    expect(
+      analytics.events.map((event) => event.name),
+      contains(AnalyticsEvents.photoAnalysisSucceeded),
+    );
+    expect(
+      analytics.events
+          .firstWhere(
+            (event) => event.name == AnalyticsEvents.photoAnalysisSucceeded,
+          )
+          .properties,
+      {'source': 'gallery', 'requires_portion_confirmation': true},
+    );
+  });
+
+  testWidgets('photo failure records an event and offers manual fallback', (
+    tester,
+  ) async {
+    final analytics = _RecordingAnalytics();
+    final controller = PhotoFoodController(
+      repository: _FailingRepository(),
+      photoPicker: _FakePicker(file: XFile('fake.jpg')),
+    );
+
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true, analytics: analytics),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pick-gallery')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('clarification-skip')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add manually'), findsOneWidget);
+    expect(
+      analytics.events.map((event) => event.name),
+      contains(AnalyticsEvents.photoAnalysisFailed),
+    );
+
+    await tester.tap(find.text('Add manually'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add Meal'), findsWidgets);
+    expect(
+      analytics.events.map((event) => event.name),
+      contains(AnalyticsEvents.manualFallbackUsed),
+    );
   });
 
   testWidgets(
@@ -247,6 +371,7 @@ void main() {
     await tester.pumpWidget(MyApp(controller: controller));
     await tester.pumpAndSettle();
     expect(find.text('Track calories from food photos'), findsOneWidget);
+    expect(find.text('I already have an account'), findsNothing);
 
     await tester.tap(find.text('Get started'));
     await tester.pumpAndSettle();
@@ -400,9 +525,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Male Profile'), findsOneWidget);
-    expect(find.text('Weekly Consistency'), findsOneWidget);
-    expect(find.text('Daily Targets'), findsOneWidget);
-    expect(find.text('App Preferences'), findsOneWidget);
+    expect(find.text('Daily plan'), findsOneWidget);
+    expect(find.text('Profile settings'), findsOneWidget);
+    expect(find.text('Weekly Consistency'), findsNothing);
   });
 
   testWidgets('profile preferences opens account screen sections', (
@@ -425,15 +550,14 @@ void main() {
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('App Preferences'));
-    await tester.tap(find.text('App Preferences'));
+    await tester.ensureVisible(find.text('Profile settings'));
+    await tester.tap(find.text('Profile settings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Account'), findsOneWidget);
-    expect(find.text('PREFERENCES'), findsOneWidget);
-    expect(find.text('SECURITY'), findsOneWidget);
-    expect(find.text('SUPPORT'), findsOneWidget);
-    expect(find.text('Premium member since 2025'), findsOneWidget);
+    expect(find.text('Profile settings'), findsOneWidget);
+    expect(find.text('DATA'), findsOneWidget);
+    expect(find.text('ONBOARDING'), findsOneWidget);
+    expect(find.text('Local-only beta'), findsOneWidget);
   });
 
   testWidgets(
@@ -986,6 +1110,7 @@ void main() {
       await tester.enterText(fields.at(3), '24');
       await tester.enterText(fields.at(4), '12');
       await tester.enterText(fields.at(5), '40');
+      await tester.ensureVisible(find.byKey(const Key('meal-type-lunch')));
       await tester.tap(find.byKey(const Key('meal-type-lunch')));
       await tester.ensureVisible(find.text('Add Meal').last);
       await tester.tap(find.text('Add Meal').last);
@@ -2174,8 +2299,43 @@ void main() {
     expect(find.byKey(const Key('meal-type-dinner')), findsOneWidget);
     expect(find.byKey(const Key('meal-type-snack')), findsOneWidget);
 
+    await tester.ensureVisible(find.byKey(const Key('meal-type-lunch')));
     await tester.tap(find.byKey(const Key('meal-type-lunch')));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('manual meal submit stays visible on a compact screen', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final controller = PhotoFoodController(
+      repository: _FakeRepository(),
+      photoPicker: _FakePicker(file: null),
+    );
+    await tester.pumpWidget(
+      MyApp(controller: controller, skipOnboarding: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-manual')));
+    await tester.pumpAndSettle();
+
+    final submit = find.byKey(const Key('manual-meal-submit'));
+    expect(submit, findsOneWidget);
+    expect(
+      tester.getRect(submit).bottom,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
+
+    await tester.showKeyboard(find.byType(TextField).first);
+    await tester.pump();
+    expect(
+      tester.getRect(submit).bottom,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
   });
 }
 
@@ -2250,6 +2410,13 @@ class _FakePicker implements PhotoPicker {
 
   @override
   Future<XFile?> pick(PickSource source) async => file;
+}
+
+class _RecordingAnalytics implements Analytics {
+  final List<AnalyticsEvent> events = [];
+
+  @override
+  void track(AnalyticsEvent event) => events.add(event);
 }
 
 class _FakeRepository implements PhotoFoodRepository {
@@ -2348,6 +2515,20 @@ class _FakeRepository implements PhotoFoodRepository {
         ),
         clarificationCategories: clarificationCategories,
       ),
+    );
+  }
+}
+
+class _FailingRepository extends _FakeRepository {
+  @override
+  Future<PhotoFoodResponse> analyzePhoto(
+    XFile image, {
+    String locale = 'ru-RU',
+    String? mealTime,
+    PhotoClarificationInput? clarification,
+  }) async {
+    throw const ApiException(
+      ApiError(code: 'NETWORK_ERROR', message: 'Network error'),
     );
   }
 }

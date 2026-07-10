@@ -2,7 +2,7 @@
 
 Status: working task list for making the project easier to build on.
 
-Last updated: 2026-07-06
+Last updated: 2026-07-09
 
 This document lists the main gaps to close before implementing larger features such as AI nutrition coach, integrations, monetization, public launch, accounts, or sync.
 
@@ -10,9 +10,9 @@ It is intentionally practical. It is not a product pitch and not a detailed engi
 
 ## 1. Product Readiness
 
-- Define the exact `Beta v1` release checklist.
+- [x] Define the exact `Beta v1` release checklist in `docs/BETA_V1_CHECKLIST.md`.
 - Keep MVP scope strict: food logging, daily progress, local history, manual fallback.
-- Remove or soften any UI that looks like real analytics but is still demo/static.
+- [x] Remove or soften UI that looks like real analytics but is still demo/static.
 - Make the first-user experience understandable without personal explanation.
 - Prepare a short beta tester script: what to install, what to try, how to give feedback.
 - Decide how feedback will be collected during beta.
@@ -32,12 +32,14 @@ It is intentionally practical. It is not a product pitch and not a detailed engi
 - Clarify what local data is the source of truth.
 - Make saved meals and onboarding data resilient across normal restarts.
 - Prepare a cleaner persistence boundary before adding accounts or sync.
+- [ ] Implement authenticated cloud backup and restore for onboarding and meal history.
+- [ ] Return the welcome-screen account/restore action only when it can sign a user in and restore their data after reinstalling or changing devices; do not ship it as a placeholder.
 - Track enough meal metadata for future personalization: time, meal type, source, edits, AI uncertainty.
 - Avoid adding future AI or integration features before the diary data is trustworthy.
 
 ## 4. Analytics And Learning
 
-- Add a minimal analytics abstraction before beta.
+- [x] Add a minimal analytics abstraction before beta. Event schema: `docs/ANALYTICS.md`.
 - Track onboarding completion.
 - Track first meal logged.
 - Track photo success/failure.

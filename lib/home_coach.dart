@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import 'meal_type.dart';
@@ -47,12 +45,17 @@ class HomeCoachEvaluator {
     required double yesterdayProtein,
   }) {
     final today = DateTime(now.year, now.month, now.day);
-    final selectedDay = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final selectedDay = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     final isToday = selectedDay == today;
     final remainingCalories = max(0.0, calorieTarget - consumedKcal);
     final proteinDeficitYesterday = max(0.0, proteinTarget - yesterdayProtein);
     final mealType = _mealContext(now);
-    final proteinProgressGap = _expectedProteinByNow(now, proteinTarget) - consumedProtein;
+    final proteinProgressGap =
+        _expectedProteinByNow(now, proteinTarget) - consumedProtein;
 
     if (!hasMealsForSelectedDay) {
       return isToday
@@ -267,7 +270,8 @@ class HomeCoachEvaluator {
       return CoachCardContent(
         state: CoachCardState.onTrack,
         primary: 'Protein was the weak spot',
-        secondary: 'You finished the day around ${consumedProtein.round()}g protein',
+        secondary:
+            'You finished the day around $consumedProtein.round()g protein',
         icon: Icons.fitness_center_outlined,
         accentColor: const Color(0xFF16A34A),
       );
@@ -287,7 +291,8 @@ class HomeCoachEvaluator {
       return CoachCardContent(
         state: CoachCardState.onTrack,
         primary: 'Protein held up well',
-        secondary: 'You got in about ${consumedProtein.round()}g across the day',
+        secondary:
+            'You got in about ${consumedProtein.round()}g across the day',
         icon: Icons.verified_outlined,
         accentColor: const Color(0xFF0F766E),
       );
@@ -318,7 +323,7 @@ class HomeCoachEvaluator {
     }
 
     if (lowerBound >= upperBound) {
-      return 'Keep your next meal around ${upperBound} kcal';
+      return 'Keep your next meal around $upperBound kcal';
     }
 
     return 'Keep your next meal around $lowerBound-$upperBound kcal';
