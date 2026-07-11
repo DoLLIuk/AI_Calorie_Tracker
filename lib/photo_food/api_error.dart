@@ -55,6 +55,7 @@ String mapErrorCodeToMessage(String code) {
       return 'Analysis took too long. Please try again.';
     case 'PROVIDER_REQUEST_FAILED':
     case 'PROVIDER_ERROR':
+    case 'MODEL_OUTPUT_INVALID':
       return 'Analysis is temporarily unavailable. Please try again.';
     case 'REQUEST_NOT_FOUND':
       return 'Request not found. Please upload the photo again.';
