@@ -74,7 +74,7 @@ class PhotoFoodController extends ChangeNotifier {
     try {
       final response = await repository.analyzePhoto(
         pickedFile,
-        locale: 'ru-RU',
+        locale: 'en-US',
         clarification: clarification,
       );
       _setState(

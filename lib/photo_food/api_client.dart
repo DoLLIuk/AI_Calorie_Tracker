@@ -30,7 +30,7 @@ class PhotoFoodApiClient implements PhotoFoodRepository {
   @override
   Future<PhotoFoodResponse> analyzePhoto(
     XFile image, {
-    String locale = 'ru-RU',
+    String locale = 'en-US',
     String? mealTime,
     PhotoClarificationInput? clarification,
   }) async {

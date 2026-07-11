@@ -236,6 +236,7 @@ void main() {
       expect(find.byKey(const Key('clarification-sheet')), findsNothing);
       expect(repository.lastClarification?.dishCategory, DishCategory.soup);
       expect(repository.lastClarification?.ingredientHints, ['chicken']);
+      expect(repository.lastLocale, 'en-US');
       expect(repository.analyzeCallCount, 1);
       expect(find.text('Clarified meal estimate'), findsWidgets);
     },
@@ -2423,6 +2424,7 @@ class _FakeRepository implements PhotoFoodRepository {
   final bool requiresConfirmation;
   final List<DishCategory> clarificationCategories;
   PhotoClarificationInput? lastClarification;
+  String? lastLocale;
   int analyzeCallCount = 0;
 
   _FakeRepository({
@@ -2433,11 +2435,12 @@ class _FakeRepository implements PhotoFoodRepository {
   @override
   Future<PhotoFoodResponse> analyzePhoto(
     XFile image, {
-    String locale = 'ru-RU',
+    String locale = 'en-US',
     String? mealTime,
     PhotoClarificationInput? clarification,
   }) async {
     analyzeCallCount += 1;
+    lastLocale = locale;
     lastClarification = clarification;
     final isClarified = clarification != null;
     return PhotoFoodResponse(
@@ -2523,7 +2526,7 @@ class _FailingRepository extends _FakeRepository {
   @override
   Future<PhotoFoodResponse> analyzePhoto(
     XFile image, {
-    String locale = 'ru-RU',
+    String locale = 'en-US',
     String? mealTime,
     PhotoClarificationInput? clarification,
   }) async {

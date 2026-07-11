@@ -51,6 +51,11 @@ String mapErrorCodeToMessage(String code) {
       return 'Portion must be between 1 and 2000 g.';
     case 'RATE_LIMITED':
       return 'Too many requests. Please try again later.';
+    case 'PROVIDER_TIMEOUT':
+      return 'Analysis took too long. Please try again.';
+    case 'PROVIDER_REQUEST_FAILED':
+    case 'PROVIDER_ERROR':
+      return 'Analysis is temporarily unavailable. Please try again.';
     case 'REQUEST_NOT_FOUND':
       return 'Request not found. Please upload the photo again.';
     case 'ESTIMATED_PORTION_UNAVAILABLE':
@@ -70,5 +75,3 @@ class ApiException implements Exception {
   @override
   String toString() => 'ApiException(${error.code})';
 }
-
-
