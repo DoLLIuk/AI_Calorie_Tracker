@@ -27,8 +27,14 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Analytics? analytics;
   if (_supportsFirebaseAnalytics) {
-    await Firebase.initializeApp();
-    analytics = FirebaseAnalyticsAdapter();
+    try {
+      await Firebase.initializeApp();
+      analytics = FirebaseAnalyticsAdapter();
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Firebase Analytics is unavailable: $error');
+      }
+    }
   }
   runApp(MyApp(analytics: analytics));
 }
@@ -70,6 +76,7 @@ class _MyAppState extends State<MyApp> {
 
   late final PhotoFoodController _controller;
   late final bool _ownsController;
+  late final bool _photoAnalysisAvailable;
   late final Analytics _analytics;
   OnboardingResult? _onboardingResult;
   OnboardingDraft? _onboardingDraft;
@@ -86,16 +93,21 @@ class _MyAppState extends State<MyApp> {
     if (widget.controller != null) {
       _controller = widget.controller!;
       _ownsController = false;
+      _photoAnalysisAvailable = true;
     } else {
-      final config = widget.config ?? AppConfig.fromEnvironment();
+      final config = widget.config ?? AppConfig.tryFromEnvironment();
       final repository =
-          widget.repository ?? PhotoFoodApiClient(config: config);
+          widget.repository ??
+          (config == null
+              ? const UnavailablePhotoFoodRepository()
+              : PhotoFoodApiClient(config: config));
       final picker = widget.photoPicker ?? ImagePickerPhotoPicker();
       _controller = PhotoFoodController(
         repository: repository,
         photoPicker: picker,
       );
       _ownsController = true;
+      _photoAnalysisAvailable = widget.repository != null || config != null;
     }
 
     _hydrateState();
@@ -340,6 +352,7 @@ class _MyAppState extends State<MyApp> {
               onResetOnboarding: _resetOnboardingForTesting,
               onEditProfile: _openProfileEditor,
               nowProvider: widget.nowProvider,
+              photoAnalysisAvailable: _photoAnalysisAvailable,
             )
           : OnboardingFlow(
               initialDraft: _onboardingDraft,
@@ -371,6 +384,7 @@ class _AppShell extends StatefulWidget {
   final Future<void> Function(BuildContext context) onEditProfile;
   final DateTime Function()? nowProvider;
   final Analytics analytics;
+  final bool photoAnalysisAvailable;
 
   const _AppShell({
     required this.controller,
@@ -381,6 +395,7 @@ class _AppShell extends StatefulWidget {
     required this.onEditProfile,
     required this.analytics,
     this.nowProvider,
+    required this.photoAnalysisAvailable,
   });
 
   @override
@@ -406,6 +421,7 @@ class _AppShellState extends State<_AppShell> {
             onMealsChanged: widget.onMealsChanged,
             nowProvider: widget.nowProvider,
             analytics: widget.analytics,
+            photoAnalysisAvailable: widget.photoAnalysisAvailable,
           ),
           ProfilePage(
             onboardingResult: widget.onboardingResult,
@@ -462,6 +478,7 @@ class _CaloriesHomePage extends StatefulWidget {
   final ValueChanged<List<_MealEntry>> onMealsChanged;
   final DateTime Function()? nowProvider;
   final Analytics analytics;
+  final bool photoAnalysisAvailable;
 
   const _CaloriesHomePage({
     super.key,
@@ -471,6 +488,7 @@ class _CaloriesHomePage extends StatefulWidget {
     required this.onMealsChanged,
     this.nowProvider,
     required this.analytics,
+    required this.photoAnalysisAvailable,
   });
 
   @override
@@ -788,18 +806,28 @@ class _CaloriesHomePageState extends State<_CaloriesHomePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                key: const Key('pick-camera'),
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take photo'),
-                onTap: () => Navigator.of(context).pop(_AddAction.camera),
-              ),
-              ListTile(
-                key: const Key('pick-gallery'),
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Choose from gallery'),
-                onTap: () => Navigator.of(context).pop(_AddAction.gallery),
-              ),
+              if (widget.photoAnalysisAvailable) ...[
+                ListTile(
+                  key: const Key('pick-camera'),
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Take photo'),
+                  onTap: () => Navigator.of(context).pop(_AddAction.camera),
+                ),
+                ListTile(
+                  key: const Key('pick-gallery'),
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Choose from gallery'),
+                  onTap: () => Navigator.of(context).pop(_AddAction.gallery),
+                ),
+              ] else
+                const ListTile(
+                  key: Key('photo-analysis-unavailable'),
+                  leading: Icon(Icons.info_outline),
+                  title: Text('Photo analysis is unavailable'),
+                  subtitle: Text(
+                    'This build is not configured for it. You can still add meals manually.',
+                  ),
+                ),
               ListTile(
                 key: const Key('add-manual'),
                 leading: const Icon(Icons.edit_note_outlined),

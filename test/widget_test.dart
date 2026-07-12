@@ -34,6 +34,16 @@ void main() {
     expect(find.text('Choose from gallery'), findsOneWidget);
   });
 
+  testWidgets('runs in manual local-only mode without API configuration', (tester) async {
+    await tester.pumpWidget(const MyApp(skipOnboarding: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('fab-add')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('photo-analysis-unavailable')), findsOneWidget);
+    expect(find.text('Take photo'), findsNothing);
+    expect(find.text('Choose from gallery'), findsNothing);
+    expect(find.byKey(const Key('add-manual')), findsOneWidget);
+  });
   testWidgets('manual logging records first-meal core-loop events', (
     tester,
   ) async {
